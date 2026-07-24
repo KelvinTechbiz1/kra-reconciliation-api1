@@ -81,7 +81,7 @@ def send_password_reset_email(to_email: str, username: str, reset_link: str) -> 
           <!-- Header Banner -->
           <tr>
             <td style="background-color:#0e1734; padding:28px 32px; text-align:center;">
-              <h1 style="color:#ffffff; margin:0; font-size:20px; font-weight:700; tracking-tight">{app_name}</h1>
+              <h1 style="color:#ffffff !important; margin:0; font-size:22px; font-weight:700; letter-spacing:-0.02em;">{app_name}</h1>
               <p style="color:#94a3b8; margin:4px 0 0 0; font-size:12px; font-weight:500;">Secure Identity & Account Services</p>
             </td>
           </tr>
@@ -90,7 +90,7 @@ def send_password_reset_email(to_email: str, username: str, reset_link: str) -> 
           <tr>
             <td style="padding:32px; color:#334155; font-size:14px; line-height:1.6;">
               <p style="margin:0 0 16px 0; font-size:15px; font-weight:600; color:#0f172a;">
-                Hello @{username},
+                Hello {username},
               </p>
               <p style="margin:0 0 20px 0;">
                 We received a request to reset your password for your account on <strong>{app_name}</strong>.
@@ -132,3 +132,96 @@ def send_password_reset_email(to_email: str, username: str, reset_link: str) -> 
 """
 
     return send_email(to_email, subject, body_html, body_text)
+
+
+def send_welcome_account_email(to_email: str, username: str, password: str, full_name: str | None = None) -> bool:
+    """Send a welcome email with account login credentials to a newly created user."""
+    settings = get_settings()
+    app_name = "UshuruLens"
+    subject = f"Welcome to {app_name} — Your Account Credentials"
+    login_link = f"{settings.frontend_url.rstrip('/')}/login"
+    display_name = full_name or username
+
+    body_text = (
+        f"Hello {display_name},\n\n"
+        f"Your account on {app_name} has been created successfully.\n\n"
+        f"Here are your initial login credentials:\n"
+        f"  Username: {username}\n"
+        f"  Temporary Password: {password}\n\n"
+        f"Please log in at:\n{login_link}\n\n"
+        f"For security reasons, we strongly recommend updating your password after your initial log in.\n\n"
+        f"Regards,\n{settings.mail_from_name}"
+    )
+
+    body_html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to {app_name}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f8fafc; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#f8fafc; padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width:540px; background-color:#ffffff; border-radius:16px; border:1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); overflow:hidden;">
+          
+          <!-- Header Banner -->
+          <tr>
+            <td style="background-color:#0e1734; padding:28px 32px; text-align:center;">
+              <h1 style="color:#ffffff !important; margin:0; font-size:22px; font-weight:700; letter-spacing:-0.02em;">{app_name}</h1>
+              <p style="color:#94a3b8; margin:4px 0 0 0; font-size:12px; font-weight:500;">Secure Identity & Account Services</p>
+            </td>
+          </tr>
+
+          <!-- Content Body -->
+          <tr>
+            <td style="padding:32px; color:#334155; font-size:14px; line-height:1.6;">
+              <p style="margin:0 0 16px 0; font-size:15px; font-weight:600; color:#0f172a;">
+                Hello {display_name},
+              </p>
+              <p style="margin:0 0 20px 0;">
+                Your new team account for <strong>{app_name}</strong> has been provisioned and is ready for use.
+              </p>
+              
+              <div style="background-color:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:20px; margin:24px 0;">
+                <div style="margin-bottom:12px;">
+                  <span style="font-size:11px; font-weight:700; text-transform:uppercase; color:#64748b; letter-spacing:0.05em; display:block;">Username</span>
+                  <span style="font-family:monospace; font-weight:700; font-size:15px; color:#0f172a;">{username}</span>
+                </div>
+                <div>
+                  <span style="font-size:11px; font-weight:700; text-transform:uppercase; color:#64748b; letter-spacing:0.05em; display:block;">Temporary Password</span>
+                  <span style="font-family:monospace; font-weight:700; font-size:15px; color:#1d4ed8; background-color:#eff6ff; padding:2px 8px; border-radius:4px; border:1px solid #bfdbfe; display:inline-block; margin-top:2px;">{password}</span>
+                </div>
+              </div>
+
+              <div style="text-align:center; margin:28px 0;">
+                <a href="{login_link}" target="_blank" style="background-color:#0e1734; color:#ffffff; font-weight:600; text-decoration:none; padding:12px 28px; border-radius:10px; font-size:14px; display:inline-block; box-shadow: 0 2px 4px rgba(14, 23, 52, 0.2);">
+                  Log In to {app_name} &rarr;
+                </a>
+              </div>
+
+              <div style="border-top:1px solid #f1f5f9; padding-top:16px; margin-top:24px; font-size:12px; color:#94a3b8;">
+                <p style="margin:0 0 4px 0;"><strong>Security Notice:</strong> For account security, we recommend updating your password after logging in for the first time.</p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#f8fafc; border-top:1px solid #e2e8f0; padding:16px 32px; text-align:center; font-size:11px; color:#94a3b8;">
+              &copy; {app_name}. Powered by {settings.mail_from_name}.
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+
+    return send_email(to_email, subject, body_html, body_text)
+
+

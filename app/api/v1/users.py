@@ -9,6 +9,10 @@ from app.models.user import User
 from app.schemas.user import UserCreate, UserPasswordReset, UserResponse, UserUpdate
 from app.services import email_service, password_reset_service, user_service
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
@@ -59,7 +63,21 @@ def create_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already exists.",
         )
-    return user_service.create_user(db, body)
+    user = user_service.create_user(db, body)
+
+    if user.email and getattr(user, "generated_password", None):
+        try:
+            email_service.send_welcome_account_email(
+                to_email=user.email,
+                username=user.username,
+                password=user.generated_password,
+                full_name=user.full_name,
+            )
+        except Exception as e:
+            logger.error(f"Failed to send welcome email to {user.email}: {e}")
+
+    return user
+
 
 
 @router.patch("/{user_id}", response_model=UserResponse)

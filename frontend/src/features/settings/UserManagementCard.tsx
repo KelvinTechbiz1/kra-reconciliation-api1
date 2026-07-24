@@ -82,33 +82,17 @@ interface CreateUserModalProps {
 function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps) {
   const [mounted, setMounted] = useState(false);
   const [username, setUsername] = useState("");
-  const [password, setPassword] = useState(() => generateAutoPassword());
-  const [showPassword, setShowPassword] = useState(true);
-  const [copied, setCopied] = useState(false);
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<UserRole>("checker");
   const [companyId, setCompanyId] = useState<string>("");
   const [saving, setSaving] = useState(false);
-  const [createdCredentials, setCreatedCredentials] = useState<{ username: string; password: string } | null>(null);
+  const [createdUser, setCreatedUser] = useState<{ username: string; email?: string } | null>(null);
   const { notify } = useToast();
 
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  const handleRegeneratePassword = () => {
-    const newPwd = generateAutoPassword();
-    setPassword(newPwd);
-    setCopied(false);
-  };
-
-  const handleCopyPassword = (textToCopy: string) => {
-    navigator.clipboard.writeText(textToCopy);
-    setCopied(true);
-    notify("Copied to clipboard!", "success");
-    setTimeout(() => setCopied(false), 2500);
-  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,7 +101,6 @@ function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps
     try {
       const payload: UserCreatePayload = {
         username,
-        password,
         email: email || undefined,
         full_name: fullName || undefined,
         role,
@@ -136,9 +119,8 @@ function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps
         throw new Error(detailMsg || "Failed to create user.");
       }
       const data = await res.json();
-      const finalPassword = data.generated_password || password;
 
-      setCreatedCredentials({ username, password: finalPassword });
+      setCreatedUser({ username: data.username, email: data.email });
       notify(`User account @${username} created successfully.`, "success");
       onCreated();
     } catch (err: unknown) {
@@ -158,7 +140,7 @@ function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps
           <div className="flex items-center gap-3">
             <UserPlus className="w-5 h-5 text-blue-600" />
             <h3 className="font-bold text-slate-900 text-sm">
-              {createdCredentials ? "Account Created Successfully" : "Create New Team Account"}
+              {createdUser ? "Account Created Successfully" : "Create New Team Account"}
             </h3>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer">
@@ -166,48 +148,43 @@ function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps
           </button>
         </div>
 
-        {createdCredentials ? (
+        {createdUser ? (
           <div className="p-6 space-y-5 text-center">
             <div className="w-12 h-12 bg-emerald-100 border border-emerald-200 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-7 h-7" />
             </div>
             <div>
-              <h4 className="font-bold text-slate-900 text-base">Account @{createdCredentials.username} is Ready</h4>
-              <p className="text-xs text-slate-500 mt-1">
-                Please copy the auto-generated credentials below to share with the user.
+              <h4 className="font-bold text-slate-900 text-base">Account @{createdUser.username} Provisioned</h4>
+              <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+                {createdUser.email ? (
+                  <>
+                    A secure password has been automatically generated and sent via email to{" "}
+                    <span className="font-semibold text-slate-900">{createdUser.email}</span>.
+                  </>
+                ) : (
+                  <>The user account has been successfully created in the system.</>
+                )}
               </p>
             </div>
 
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-left space-y-3">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-left space-y-2">
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-500 font-medium uppercase tracking-wider">Username</span>
-                <span className="font-mono font-bold text-slate-900">@{createdCredentials.username}</span>
+                <span className="font-mono font-bold text-slate-900">@{createdUser.username}</span>
               </div>
-              <div className="flex justify-between items-center text-xs border-t border-slate-200/60 pt-2.5">
-                <span className="text-slate-500 font-medium uppercase tracking-wider">Password</span>
-                <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                  {createdCredentials.password}
-                </span>
-              </div>
+              {createdUser.email && (
+                <div className="flex justify-between items-center text-xs border-t border-slate-200/60 pt-2">
+                  <span className="text-slate-500 font-medium uppercase tracking-wider">Recipient Email</span>
+                  <span className="font-medium text-slate-800">{createdUser.email}</span>
+                </div>
+              )}
             </div>
 
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() =>
-                  handleCopyPassword(
-                    `Username: ${createdCredentials.username}\nPassword: ${createdCredentials.password}`
-                  )
-                }
-                className="flex-1 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-lg text-sm border border-blue-200 flex items-center justify-center gap-2 cursor-pointer transition-colors"
-              >
-                {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                {copied ? "Credentials Copied!" : "Copy Account Details"}
-              </button>
+            <div className="flex justify-end pt-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-5 py-2.5 bg-[#0e1734] hover:bg-[#16224c] text-white rounded-lg text-sm font-semibold cursor-pointer transition-colors"
+                className="w-full sm:w-auto px-6 py-2.5 bg-[#0e1734] hover:bg-[#16224c] text-white rounded-lg text-sm font-semibold cursor-pointer transition-colors"
               >
                 Done
               </button>
@@ -248,50 +225,14 @@ function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps
                 />
               </div>
 
-              {/* Auto-Generated Password Section */}
-              <div className="space-y-1.5 col-span-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <KeyRound className="w-3.5 h-3.5 text-blue-600" />
-                    Auto-Generated Password
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleRegeneratePassword}
-                    className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
-                  >
-                    <RefreshCw className="w-3 h-3" /> Regenerate
-                  </button>
+              {/* Password Automated Email Notice */}
+              <div className="space-y-1.5 col-span-2 bg-blue-50/60 p-3.5 rounded-xl border border-blue-100">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                  <h4 className="text-xs font-semibold text-slate-800">Automated Secure Password</h4>
                 </div>
-                <div className="relative flex items-center">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    readOnly
-                    value={password}
-                    className="w-full pl-3.5 pr-24 py-2 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm font-mono font-bold tracking-wide select-all focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  />
-                  <div className="absolute right-1.5 flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="p-1.5 text-slate-400 hover:text-slate-600 cursor-pointer"
-                      title={showPassword ? "Hide password" : "Show password"}
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleCopyPassword(password)}
-                      className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-medium flex items-center gap-1 cursor-pointer transition-colors"
-                    >
-                      {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
-                      {copied ? "Copied" : "Copy"}
-                    </button>
-                  </div>
-                </div>
-                <p className="text-[11px] text-slate-500 flex items-center gap-1 pt-0.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  Auto-generated secure password meeting enterprise security rules.
+                <p className="text-[12px] text-slate-600 leading-relaxed">
+                  A secure password will be automatically generated and emailed directly to the user upon account creation.
                 </p>
               </div>
 
@@ -349,6 +290,7 @@ function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps
     document.body
   );
 }
+
 
 // --- Reset Password Modal ---
 interface ResetPasswordModalProps {

@@ -177,6 +177,22 @@ def test_user_management_and_password_reset(client, db_session):
     assert "generated_password" in auto_data
     assert len(auto_data["generated_password"]) >= 8
 
+    # 3e. Creating user with email triggers welcome email dispatch logic
+    create_email_res = client.post(
+        "/api/v1/users",
+        json={
+            "username": "c1_email_member",
+            "email": "c1_email_member@example.com",
+            "role": "checker",
+        },
+        headers=headers_c1,
+    )
+    assert create_email_res.status_code == 201
+    email_user_data = create_email_res.json()
+    assert email_user_data["email"] == "c1_email_member@example.com"
+    assert "generated_password" in email_user_data
+
+
     # 4. Company 1 Admin updates username of C1 worker (Should Succeed)
     update_res = client.patch(
         f"/api/v1/users/{c1_worker.id}",
