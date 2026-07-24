@@ -39,6 +39,18 @@ def get_by_username(db: Session, username: str) -> User | None:
     return db.query(User).filter(User.username == username).first()
 
 
+def get_by_identifier(db: Session, identifier: str) -> User | None:
+    """Find user by username or email address (case-insensitive for email)."""
+    clean_id = identifier.strip()
+    return (
+        db.query(User)
+        .filter(
+            (User.username == clean_id) | (User.email != None) & (User.email.ilike(clean_id))
+        )
+        .first()
+    )
+
+
 def get_by_id(db: Session, user_id: int) -> User | None:
     return db.query(User).filter(User.id == user_id).first()
 

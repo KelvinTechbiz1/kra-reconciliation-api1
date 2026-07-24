@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   ShieldAlert,
   KeyRound,
+  Mail,
   ToggleLeft,
   ToggleRight,
   BadgeCheck,
@@ -488,6 +489,7 @@ export function UserManagementCard({ users, companies = [], currentUserId, onSav
   const [editingId, setEditingId] = useState<number | null>(null);
   const [resetUserId, setResetUserId] = useState<number | null>(null);
   const [togglingId, setTogglingId] = useState<number | null>(null);
+  const [sendingEmailId, setSendingEmailId] = useState<number | null>(null);
 
   const companyMap = new Map<number, CompanyProfile>();
   companies.forEach((c) => companyMap.set(c.id, c));
@@ -509,6 +511,29 @@ export function UserManagementCard({ users, companies = [], currentUserId, onSav
   });
 
   const { notify } = useToast();
+
+  const handleSendResetEmail = async (user: UserRecord) => {
+    if (!user.email) {
+      notify(`User @${user.username} does not have an email address configured. Please set an email first.`, "error");
+      return;
+    }
+    setSendingEmailId(user.id);
+    try {
+      const res = await fetchWithAuth(`/users/${user.id}/send-reset-email`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Failed to send reset email.");
+      }
+      notify(`Password reset link successfully sent to ${user.email} via SendGrid.`, "success");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      notify(msg || "An error occurred while sending email.", "error");
+    } finally {
+      setSendingEmailId(null);
+    }
+  };
 
   const handleToggleActive = async (user: UserRecord) => {
     if (user.id === currentUserId) return;
@@ -717,9 +742,21 @@ export function UserManagementCard({ users, companies = [], currentUserId, onSav
                             {editingId === user.id ? <X className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
                           </button>
                           <button
+                            onClick={() => handleSendResetEmail(user)}
+                            disabled={sendingEmailId === user.id}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer disabled:opacity-50"
+                            title="Send Password Reset Email via SendGrid"
+                          >
+                            {sendingEmailId === user.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                            ) : (
+                              <Mail className="w-4 h-4" />
+                            )}
+                          </button>
+                          <button
                             onClick={() => setResetUserId(user.id)}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
-                            title="Reset password"
+                            title="Manual password override"
                           >
                             <KeyRound className="w-4 h-4" />
                           </button>

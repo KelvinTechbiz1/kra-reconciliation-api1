@@ -260,3 +260,54 @@ def test_change_password(client):
     assert new_login.status_code == 200
 
 
+def test_forgot_and_reset_password_flow(client):
+    # 1. Register a user with email
+    client.post("/api/v1/auth/register", json={
+        "username": "forgot_user",
+        "password": "InitialP@ss123",
+        "email": "forgot@example.com"
+    })
+
+    # 2. Request forgot password link
+    forgot_res = client.post("/api/v1/auth/forgot-password", json={"identifier": "forgot@example.com"})
+    assert forgot_res.status_code == 200
+    assert "password reset link has been sent" in forgot_res.json()["detail"]
+
+    # 3. Create a valid reset token directly using password_reset_service to test token verification & reset
+    from app.services import password_reset_service, user_service
+    # Get user id
+    with client:
+        token = password_reset_service.create_password_reset_token(1, "forgot_user")
+
+    # 4. Verify valid token
+    verify_res = client.post("/api/v1/auth/verify-reset-token", json={"token": token})
+    assert verify_res.status_code == 200
+    assert verify_res.json()["valid"] is True
+
+    # 5. Reset password using token
+    reset_res = client.post("/api/v1/auth/reset-password", json={
+        "token": token,
+        "new_password": "BrandNewP@ssw0rd99!"
+    })
+    assert reset_res.status_code == 200
+    assert "Password has been reset successfully" in reset_res.json()["detail"]
+
+    # 6. Login with new password
+    login_res = client.post("/api/v1/auth/login", json={"username": "forgot_user", "password": "BrandNewP@ssw0rd99!"})
+    assert login_res.status_code == 200
+
+
+def test_invalid_reset_token(client):
+    # 1. Invalid token verification
+    verify_res = client.post("/api/v1/auth/verify-reset-token", json={"token": "invalid.jwt.token"})
+    assert verify_res.status_code == 400
+
+    # 2. Invalid token reset attempt
+    reset_res = client.post("/api/v1/auth/reset-password", json={
+        "token": "invalid.jwt.token",
+        "new_password": "NewP@ssw0rd123!"
+    })
+    assert reset_res.status_code == 400
+
+
+

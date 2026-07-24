@@ -3,10 +3,11 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.user import UserCreate, UserPasswordReset, UserResponse, UserUpdate
-from app.services import user_service
+from app.services import email_service, password_reset_service, user_service
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -120,3 +121,42 @@ def reset_password(
 
     updated = user_service.reset_password(db, user_id, body.new_password)
     return updated
+
+
+@router.post("/{user_id}/send-reset-email", status_code=status.HTTP_200_OK)
+def send_reset_email(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Trigger a password reset email via SendGrid to a user. Admin accessible."""
+    target_user = user_service.get_by_id(db, user_id)
+    if target_user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+    if current_user.company_id is not None:
+        if current_user.role != "admin" or target_user.company_id != current_user.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only manage users within your company.",
+            )
+
+    if not target_user.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"User @{target_user.username} does not have an email address configured.",
+        )
+
+    token = password_reset_service.create_password_reset_token(target_user.id, target_user.username)
+    settings = get_settings()
+    reset_link = f"{settings.frontend_url.rstrip('/')}/reset-password?token={token}"
+
+    sent = email_service.send_password_reset_email(target_user.email, target_user.username, reset_link)
+    if not sent:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send password reset email via SendGrid SMTP.",
+        )
+
+    return {"detail": f"Password reset email sent successfully to {target_user.email}."}
+

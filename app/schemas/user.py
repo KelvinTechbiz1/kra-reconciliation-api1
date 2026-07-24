@@ -116,3 +116,22 @@ class RefreshRequest(BaseModel):
 
 class LogoutRequest(BaseModel):
     refresh_token: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    identifier: str = Field(min_length=1, description="Username or email address")
+
+
+class VerifyResetTokenRequest(BaseModel):
+    token: str = Field(min_length=1, description="Password reset JWT token")
+
+
+class ResetPasswordWithTokenRequest(BaseModel):
+    token: str = Field(min_length=1, description="Password reset JWT token")
+    new_password: str = Field(min_length=8, description="New password")
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        return validate_password_complexity(v)
+

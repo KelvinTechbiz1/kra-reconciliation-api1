@@ -52,6 +52,19 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(default=30, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
     refresh_token_expire_days: int = Field(default=7, alias="REFRESH_TOKEN_EXPIRE_DAYS")
 
+    frontend_url: str = Field(default="http://localhost:3000", alias="FRONTEND_URL")
+
+    # Mail SMTP Settings (SendGrid)
+    mail_mailer: str = Field(default="smtp", alias="MAIL_MAILER")
+    mail_host: str = Field(default="smtp.sendgrid.net", alias="MAIL_HOST")
+    mail_port: int = Field(default=587, alias="MAIL_PORT")
+    mail_username: str = Field(default="apikey", alias="MAIL_USERNAME")
+    mail_password: SecretStr = Field(default=SecretStr(""), alias="MAIL_PASSWORD")
+    mail_from_address: str = Field(default="47CRM@techbizafrica.com", alias="MAIL_FROM_ADDRESS")
+    mail_from_name: str = Field(default="Techbiz Group", alias="MAIL_FROM_NAME")
+    mail_encryption: str = Field(default="tls", alias="MAIL_ENCRYPTION")
+    password_reset_token_expire_minutes: int = Field(default=30, alias="PASSWORD_RESET_TOKEN_EXPIRE_MINUTES")
+
     sap_base_url: AnyHttpUrl | None = Field(default=None, alias="SAP_BASE_URL")
     sap_username: str = Field(default="", alias="SAP_USERNAME")
     sap_password: SecretStr = Field(default=SecretStr(""), alias="SAP_PASSWORD")

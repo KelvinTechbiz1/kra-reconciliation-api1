@@ -16,7 +16,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Ushuru Lens | Powered by Techbiz",
+  title: "Ushuru Lens | Powered by Techbiz Group",
   description: "Ushuru Lens - KRA Reconciliation & Tax Compliance Engine powered by Techbiz",
 };
 
