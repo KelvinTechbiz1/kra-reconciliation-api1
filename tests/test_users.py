@@ -52,7 +52,7 @@ def test_user_management_and_password_reset(client, db_session):
     # Create Platform Admin
     platform_admin = User(
         username="platform_admin",
-        password_hash=hash_password("admin12345"),
+        password_hash=hash_password("AdminP@ss123!"),
         role="admin",
         company_id=None,
     )
@@ -60,7 +60,7 @@ def test_user_management_and_password_reset(client, db_session):
     # Create Company 1 Admin
     c1_admin = User(
         username="c1_admin",
-        password_hash=hash_password("admin12345"),
+        password_hash=hash_password("AdminP@ss123!"),
         role="admin",
         company_id=c1.id,
     )
@@ -68,7 +68,7 @@ def test_user_management_and_password_reset(client, db_session):
     # Create Company 1 Worker
     c1_worker = User(
         username="c1_worker",
-        password_hash=hash_password("worker12345"),
+        password_hash=hash_password("WorkerP@ss123!"),
         role="checker",
         company_id=c1.id,
     )
@@ -76,7 +76,7 @@ def test_user_management_and_password_reset(client, db_session):
     # Create Company 2 Worker
     c2_worker = User(
         username="c2_worker",
-        password_hash=hash_password("worker12345"),
+        password_hash=hash_password("WorkerP@ss123!"),
         role="checker",
         company_id=c2.id,
     )
@@ -88,10 +88,18 @@ def test_user_management_and_password_reset(client, db_session):
     c1_admin_token = create_access_token({"sub": "c1_admin"})
     headers_c1 = {"Authorization": f"Bearer {c1_admin_token}"}
 
-    # 1. Company 1 Admin resets password for C1 worker (Should Succeed)
+    # 1. Reset password with weak password (Should fail 422)
+    res_weak = client.post(
+        f"/api/v1/users/{c1_worker.id}/reset-password",
+        json={"new_password": "weakpassword"},
+        headers=headers_c1,
+    )
+    assert res_weak.status_code == 422
+
+    # 1b. Company 1 Admin resets password for C1 worker (Should Succeed with compliant password)
     res = client.post(
         f"/api/v1/users/{c1_worker.id}/reset-password",
-        json={"new_password": "new_password_123"},
+        json={"new_password": "NewP@ssw0rd1!"},
         headers=headers_c1,
     )
     assert res.status_code == 200, res.text
@@ -99,41 +107,54 @@ def test_user_management_and_password_reset(client, db_session):
     # Verify C1 Worker can login with new password
     login_res = client.post(
         "/api/v1/auth/login",
-        json={"username": "c1_worker", "password": "new_password_123"},
+        json={"username": "c1_worker", "password": "NewP@ssw0rd1!"},
     )
     assert login_res.status_code == 200
 
     # 2. Company 1 Admin tries to reset password for C2 worker (Should fail 403 Forbidden)
     res_fail = client.post(
         f"/api/v1/users/{c2_worker.id}/reset-password",
-        json={"new_password": "hacked_password_123"},
+        json={"new_password": "HackedP@ssw0rd1!"},
         headers=headers_c1,
     )
     assert res_fail.status_code == 403
 
-    # 3. Company 1 Admin creates a user for Company 1 (Should Succeed)
+    # 3. Company 1 Admin creates a user with weak password (Should fail 422)
+    create_weak_res = client.post(
+        "/api/v1/users",
+        json={
+            "username": "c1_weak_member",
+            "password": "password123",
+            "role": "checker",
+        },
+        headers=headers_c1,
+    )
+    assert create_weak_res.status_code == 422
+
+    # 3b. Company 1 Admin creates a user for Company 1 with valid password (Should Succeed)
     create_res = client.post(
         "/api/v1/users",
         json={
             "username": "c1_new_member",
-            "password": "password12345",
+            "password": "SecureP@ss123!",
             "role": "checker",
         },
         headers=headers_c1,
     )
     assert create_res.status_code == 201
 
-    # 3b. Creating user with removed 'viewer' role should fail validation
+    # 3c. Creating user with removed 'viewer' role should fail validation
     invalid_role_res = client.post(
         "/api/v1/users",
         json={
             "username": "c1_invalid_role",
-            "password": "password12345",
+            "password": "SecureP@ss123!",
             "role": "viewer",
         },
         headers=headers_c1,
     )
     assert invalid_role_res.status_code == 422
+
     # 4. Company 1 Admin updates username of C1 worker (Should Succeed)
     update_res = client.patch(
         f"/api/v1/users/{c1_worker.id}",
@@ -151,3 +172,4 @@ def test_user_management_and_password_reset(client, db_session):
     )
     assert dup_res.status_code == 400
     assert "already in use" in dup_res.json()["detail"]
+

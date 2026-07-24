@@ -42,7 +42,7 @@ def test_register_user(client):
     # Register user successfully
     payload = {
         "username": "tester",
-        "password": "securepassword123",
+        "password": "SecureP@ss123",
         "email": "tester@example.com",
     }
     response = client.post("/api/v1/auth/register", json=payload)
@@ -59,11 +59,24 @@ def test_register_user(client):
     assert response.json()["detail"] == "Username already registered"
 
 
+def test_register_weak_passwords(client):
+    invalid_passwords = [
+        "short1!",        # Too short (< 8 chars)
+        "nocaps123!",     # No uppercase
+        "NOLOWER123!",    # No lowercase
+        "NoNumbers!",     # No number
+        "NoSpecial123",   # No special char
+    ]
+    for pw in invalid_passwords:
+        res = client.post("/api/v1/auth/register", json={"username": f"user_{pw}", "password": pw})
+        assert res.status_code == 422, f"Expected 422 for weak password '{pw}', got {res.status_code}"
+
+
 def test_login_json(client):
     # Register user
     register_payload = {
         "username": "tester",
-        "password": "securepassword123",
+        "password": "SecureP@ss123",
         "email": "tester@example.com",
     }
     client.post("/api/v1/auth/register", json=register_payload)
@@ -71,7 +84,7 @@ def test_login_json(client):
     # Login with JSON payload
     login_payload = {
         "username": "tester",
-        "password": "securepassword123",
+        "password": "SecureP@ss123",
     }
     response = client.post("/api/v1/auth/login", json=login_payload)
     assert response.status_code == 200
@@ -85,7 +98,7 @@ def test_login_form(client):
     # Register user
     register_payload = {
         "username": "tester",
-        "password": "securepassword123",
+        "password": "SecureP@ss123",
         "email": "tester@example.com",
     }
     client.post("/api/v1/auth/register", json=register_payload)
@@ -93,7 +106,7 @@ def test_login_form(client):
     # Login with Form-encoded payload
     login_payload = {
         "username": "tester",
-        "password": "securepassword123",
+        "password": "SecureP@ss123",
     }
     response = client.post("/api/v1/auth/token", data=login_payload)
     assert response.status_code == 200
@@ -107,14 +120,14 @@ def test_login_invalid_credentials(client):
     # Register user
     register_payload = {
         "username": "tester",
-        "password": "securepassword123",
+        "password": "SecureP@ss123",
     }
     client.post("/api/v1/auth/register", json=register_payload)
 
     # Login with incorrect password
     login_payload = {
         "username": "tester",
-        "password": "wrongpassword",
+        "password": "WrongPassword1!",
     }
     response = client.post("/api/v1/auth/login", json=login_payload)
     assert response.status_code == 401
@@ -125,13 +138,13 @@ def test_get_current_user_profile(client):
     # Register and Login
     register_payload = {
         "username": "tester",
-        "password": "securepassword123",
+        "password": "SecureP@ss123",
     }
     client.post("/api/v1/auth/register", json=register_payload)
 
     login_payload = {
         "username": "tester",
-        "password": "securepassword123",
+        "password": "SecureP@ss123",
     }
     response = client.post("/api/v1/auth/login", json=login_payload)
     token = response.json()["access_token"]
@@ -149,13 +162,13 @@ def test_refresh_token_rotation(client):
     # Register and Login
     register_payload = {
         "username": "tester",
-        "password": "securepassword123",
+        "password": "SecureP@ss123",
     }
     client.post("/api/v1/auth/register", json=register_payload)
 
     login_payload = {
         "username": "tester",
-        "password": "securepassword123",
+        "password": "SecureP@ss123",
     }
     response = client.post("/api/v1/auth/login", json=login_payload)
     tokens = response.json()
@@ -183,13 +196,13 @@ def test_logout(client):
     # Register and Login
     register_payload = {
         "username": "tester",
-        "password": "securepassword123",
+        "password": "SecureP@ss123",
     }
     client.post("/api/v1/auth/register", json=register_payload)
 
     login_payload = {
         "username": "tester",
-        "password": "securepassword123",
+        "password": "SecureP@ss123",
     }
     response = client.post("/api/v1/auth/login", json=login_payload)
     refresh_token = response.json()["refresh_token"]
@@ -209,32 +222,41 @@ def test_logout(client):
 def test_change_password(client):
     register_payload = {
         "username": "password_changer",
-        "password": "old_password_123",
+        "password": "OldP@ssw0rd1!",
     }
     client.post("/api/v1/auth/register", json=register_payload)
 
-    login_res = client.post("/api/v1/auth/login", json={"username": "password_changer", "password": "old_password_123"})
+    login_res = client.post("/api/v1/auth/login", json={"username": "password_changer", "password": "OldP@ssw0rd1!"})
     token = login_res.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     # 1. Attempt change password with wrong current password (Should fail 400)
     bad_res = client.post(
         "/api/v1/auth/change-password",
-        json={"current_password": "wrong_password", "new_password": "new_password_123"},
+        json={"current_password": "WrongPassword1!", "new_password": "NewP@ssw0rd2!"},
         headers=headers,
     )
     assert bad_res.status_code == 400
     assert "Current password is incorrect" in bad_res.json()["detail"]
 
-    # 2. Change password successfully
+    # 2. Attempt change password with weak new password (Should fail 422)
+    weak_res = client.post(
+        "/api/v1/auth/change-password",
+        json={"current_password": "OldP@ssw0rd1!", "new_password": "weakpassword"},
+        headers=headers,
+    )
+    assert weak_res.status_code == 422
+
+    # 3. Change password successfully
     ok_res = client.post(
         "/api/v1/auth/change-password",
-        json={"current_password": "old_password_123", "new_password": "new_password_123"},
+        json={"current_password": "OldP@ssw0rd1!", "new_password": "NewP@ssw0rd2!"},
         headers=headers,
     )
     assert ok_res.status_code == 200
 
-    # 3. Verify user can log in with new password
-    new_login = client.post("/api/v1/auth/login", json={"username": "password_changer", "password": "new_password_123"})
+    # 4. Verify user can log in with new password
+    new_login = client.post("/api/v1/auth/login", json={"username": "password_changer", "password": "NewP@ssw0rd2!"})
     assert new_login.status_code == 200
+
 

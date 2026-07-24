@@ -51,7 +51,7 @@ def fixture_client(db_session):
 def fixture_auth_headers(client):
     register_payload = {
         "username": "recon_tester",
-        "password": "securepassword123",
+        "password": "SecureP@ss123",
         "email": "recon_tester@example.com",
     }
     client.post("/api/v1/auth/register", json=register_payload)
@@ -60,7 +60,7 @@ def fixture_auth_headers(client):
 
     login_payload = {
         "username": "recon_tester",
-        "password": "securepassword123",
+        "password": "SecureP@ss123",
     }
     response = client.post("/api/v1/auth/login", json=login_payload)
     token = response.json()["access_token"]

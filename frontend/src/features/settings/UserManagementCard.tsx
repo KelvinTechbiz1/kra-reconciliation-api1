@@ -25,6 +25,9 @@ import {
   Search,
 } from "lucide-react";
 
+import { validatePasswordPolicy } from "@/lib/passwordPolicy";
+import { PasswordStrengthIndicator } from "@/components/common/PasswordStrengthIndicator";
+
 interface UserManagementCardProps {
   users: UserRecord[];
   companies?: CompanyProfile[];
@@ -88,6 +91,13 @@ function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const policy = validatePasswordPolicy(password);
+    if (!policy.isValid) {
+      notify("Password does not meet complexity requirements. Please satisfy all policy conditions.", "error");
+      return;
+    }
+
     setSaving(true);
     try {
       const payload: UserCreatePayload = {
@@ -105,7 +115,10 @@ function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.detail || "Failed to create user.");
+        const detailMsg = Array.isArray(err.detail)
+          ? err.detail.map((d: { msg?: string }) => d.msg).join(", ")
+          : err.detail;
+        throw new Error(detailMsg || "Failed to create user.");
       }
       onCreated();
       onClose();
@@ -164,7 +177,7 @@ function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps
                 className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 col-span-2">
               <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Password *</label>
               <input
                 type="password"
@@ -172,11 +185,12 @@ function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps
                 minLength={8}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Min. 8 characters"
-                className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400"
+                placeholder="SecureP@ss123"
+                className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400 font-mono"
               />
+              <PasswordStrengthIndicator password={password} />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 col-span-2">
               <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Role Access *</label>
               <select
                 value={role}
@@ -250,6 +264,13 @@ function ResetPasswordModal({ user, onClose, onReset }: ResetPasswordModalProps)
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const policy = validatePasswordPolicy(newPassword);
+    if (!policy.isValid) {
+      notify("Password does not meet complexity requirements. Please satisfy all policy conditions.", "error");
+      return;
+    }
+
     setSaving(true);
     try {
       const res = await fetchWithAuth(`/users/${user.id}/reset-password`, {
@@ -259,7 +280,10 @@ function ResetPasswordModal({ user, onClose, onReset }: ResetPasswordModalProps)
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.detail || "Failed to reset password.");
+        const detailMsg = Array.isArray(err.detail)
+          ? err.detail.map((d: { msg?: string }) => d.msg).join(", ")
+          : err.detail;
+        throw new Error(detailMsg || "Failed to reset password.");
       }
       setSuccess(true);
       onReset();
@@ -275,7 +299,7 @@ function ResetPasswordModal({ user, onClose, onReset }: ResetPasswordModalProps)
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <KeyRound className="w-5 h-5 text-amber-500" />
@@ -293,16 +317,17 @@ function ResetPasswordModal({ user, onClose, onReset }: ResetPasswordModalProps)
           )}
           {!success && (
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">New Password</label>
+              <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">New Password *</label>
               <input
                 type="password"
                 required
                 minLength={8}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Min. 8 characters"
-                className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 placeholder:text-slate-400"
+                placeholder="SecureP@ss123"
+                className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 placeholder:text-slate-400 font-mono"
               />
+              <PasswordStrengthIndicator password={newPassword} />
             </div>
           )}
           <div className="pt-2 flex justify-end gap-3">

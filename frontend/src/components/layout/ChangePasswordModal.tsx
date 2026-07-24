@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { KeyRound, X, Loader2, CheckCircle2, ShieldAlert } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 import { useToast } from "@/components/ToastProvider";
+import { validatePasswordPolicy } from "@/lib/passwordPolicy";
+import { PasswordStrengthIndicator } from "@/components/common/PasswordStrengthIndicator";
 
 interface ChangePasswordModalProps {
   isOpen: boolean;
@@ -36,8 +38,9 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
       return;
     }
 
-    if (newPassword.length < 8) {
-      setErrorMsg("New password must be at least 8 characters.");
+    const policy = validatePasswordPolicy(newPassword);
+    if (!policy.isValid) {
+      setErrorMsg("New password does not meet complexity requirements. Please satisfy all policy conditions.");
       return;
     }
 
@@ -54,7 +57,10 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.detail || "Failed to update password.");
+        const detailMsg = Array.isArray(err.detail)
+          ? err.detail.map((d: { msg?: string }) => d.msg).join(", ")
+          : err.detail;
+        throw new Error(detailMsg || "Failed to update password.");
       }
 
       setSuccess(true);
@@ -124,7 +130,7 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   placeholder="Enter your current password"
-                  className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400"
+                  className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400 font-mono"
                 />
               </div>
 
@@ -138,9 +144,10 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
                   minLength={8}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Min. 8 characters"
-                  className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400"
+                  placeholder="SecureP@ss123"
+                  className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400 font-mono"
                 />
+                <PasswordStrengthIndicator password={newPassword} />
               </div>
 
               <div className="space-y-1.5">
@@ -154,7 +161,7 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Re-enter new password"
-                  className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400"
+                  className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400 font-mono"
                 />
               </div>
             </>
