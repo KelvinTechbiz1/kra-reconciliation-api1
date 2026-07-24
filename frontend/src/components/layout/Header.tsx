@@ -69,39 +69,38 @@ export function Header() {
 
   const initials = currentUser
     ? (currentUser.full_name || currentUser.username)
-        .trim()
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
+      .trim()
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2)
     : "US";
 
   return (
     <>
       <header className="bg-white border-b border-slate-200 px-8 flex justify-between items-center sticky top-0 z-40 h-16">
         <div className="flex items-center gap-8 h-full">
-          <div className="flex items-center gap-3 shrink-0">
-            <Link href="/sales" className="flex items-center gap-2">
+          <div className="flex flex-col justify-center shrink-0">
+            <Link href="/sales" className="flex items-center">
               <Image
                 src="/ushuru-lens-logo.svg"
                 alt="Ushuru Lens Logo"
-                width={240}
-                height={65}
-                className="w-44 sm:w-52 md:w-56 h-auto object-contain"
+                width={220}
+                height={60}
+                className="w-36 sm:w-40 md:w-44 h-auto object-contain"
                 priority
               />
             </Link>
-            <div className="h-5 w-px bg-slate-200 hidden md:block" />
-            <span className="text-[11px] text-slate-400 leading-tight font-medium hidden md:inline-flex items-center gap-1">
+            <span className="text-[10px] text-slate-400 font-medium leading-none inline-flex items-center gap-1 -mt-0.5 pl-[30.8%] whitespace-nowrap">
               powered by{" "}
               <a
                 href="https://www.techbizgroup.com/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-bold text-slate-600 hover:text-[#0e1734] underline decoration-slate-300 transition-colors"
+                className="font-bold text-slate-600 hover:text-[#0e1734] transition-colors underline decoration-slate-300 underline-offset-2"
               >
-                Techbiz
+                Techbiz Group
               </a>
             </span>
           </div>
@@ -116,11 +115,10 @@ export function Header() {
                 <Link
                   key={href}
                   href={href}
-                  className={`relative h-full flex items-center px-4 text-sm font-medium transition-colors ${
-                    active
-                      ? "text-[#0e1734] font-semibold"
-                      : "text-slate-500 hover:text-slate-800"
-                  }`}
+                  className={`relative h-full flex items-center px-4 text-sm font-medium transition-colors ${active
+                    ? "text-[#0e1734] font-semibold"
+                    : "text-slate-500 hover:text-slate-800"
+                    }`}
                 >
                   {label}
                   {active && (
@@ -176,11 +174,10 @@ export function Header() {
                         @{currentUser.username} {currentUser.email ? `· ${currentUser.email}` : ""}
                       </p>
                       <div className="mt-1 flex items-center gap-1.5">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                          currentUser.role === "admin"
-                            ? "bg-violet-100 text-violet-800"
-                            : "bg-blue-100 text-blue-800"
-                        }`}>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${currentUser.role === "admin"
+                          ? "bg-violet-100 text-violet-800"
+                          : "bg-blue-100 text-blue-800"
+                          }`}>
                           {currentUser.role === "admin" ? (
                             <ShieldCheck className="w-2.5 h-2.5" />
                           ) : (
