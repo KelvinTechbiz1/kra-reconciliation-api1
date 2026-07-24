@@ -61,7 +61,7 @@ export default function LoginPage() {
       <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:24px_24px] opacity-60 pointer-events-none" />
 
       <div className="w-full max-w-4xl bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden grid grid-cols-1 md:grid-cols-12 relative z-10">
-        
+
         {/* Left Side: Simple Clean Login Form */}
         <div className="md:col-span-6 p-8 sm:p-10 bg-white flex flex-col justify-between">
           <div>
@@ -69,9 +69,9 @@ export default function LoginPage() {
               <Image
                 src="/ushuru-lens-logo.svg"
                 alt="Ushuru Lens Logo"
-                width={200}
-                height={55}
-                className="h-12 w-auto object-contain -ml-1"
+                width={400}
+                height={108}
+                className="w-full max-w-[280px] sm:max-w-[320px] md:max-w-[340px] h-auto object-contain -ml-1"
                 priority
               />
               <p className="text-xs text-slate-500 font-medium">
@@ -158,15 +158,18 @@ export default function LoginPage() {
           </div>
 
           <div className="mt-8 pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <span>&copy; {new Date().getFullYear()} Ushuru Lens</span>
-            <a
-              href="https://www.techbizgroup.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-[#0e1734] transition-colors font-medium text-slate-400"
-            >
-              powered by <span className="font-bold text-slate-600 hover:text-[#0e1734] underline decoration-slate-300">Techbiz</span>
-            </a>
+            <span>&copy; {new Date().getFullYear()} UshuruLens</span>
+            <span className="text-slate-400 font-medium">
+              Powered by{" "}
+              <a
+                href="https://www.techbizgroup.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-bold text-slate-600 hover:text-[#0e1734] underline decoration-slate-300 transition-colors"
+              >
+                Techbiz Group
+              </a>
+            </span>
           </div>
         </div>
 

@@ -86,21 +86,24 @@ export function Header() {
               <Image
                 src="/ushuru-lens-logo.svg"
                 alt="Ushuru Lens Logo"
-                width={150}
-                height={40}
-                className="h-9 w-auto object-contain"
+                width={240}
+                height={65}
+                className="w-44 sm:w-52 md:w-56 h-auto object-contain"
                 priority
               />
             </Link>
             <div className="h-5 w-px bg-slate-200 hidden md:block" />
-            <a
-              href="https://www.techbizgroup.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[11px] text-slate-400 hover:text-[#0e1734] transition-colors leading-tight font-medium hidden md:inline-flex items-center gap-1"
-            >
-              powered by <span className="font-bold text-slate-600 hover:text-[#0e1734] underline decoration-slate-300">Techbiz</span>
-            </a>
+            <span className="text-[11px] text-slate-400 leading-tight font-medium hidden md:inline-flex items-center gap-1">
+              powered by{" "}
+              <a
+                href="https://www.techbizgroup.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-bold text-slate-600 hover:text-[#0e1734] underline decoration-slate-300 transition-colors"
+              >
+                Techbiz
+              </a>
+            </span>
           </div>
           <nav className="flex h-full">
             {[
