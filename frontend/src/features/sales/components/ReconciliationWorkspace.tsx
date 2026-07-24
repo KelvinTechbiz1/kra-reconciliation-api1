@@ -46,7 +46,7 @@ export function ReconciliationWorkspace({ type }: ReconciliationWorkspaceProps) 
   };
 
   return (
-    <div className="flex flex-col gap-5 w-full pb-20">
+    <div className="flex flex-col gap-3.5 w-full h-full min-h-0 overflow-hidden">
       {/* Shared Page Header */}
       <div className="flex items-center justify-between">
         <div>

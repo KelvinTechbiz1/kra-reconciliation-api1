@@ -82,7 +82,7 @@ export function WorkspaceView({
   const kraLoaded = uiState.kra.status === AsyncStatus.Loaded;
 
   return (
-    <div className="flex flex-col gap-5 w-full">
+    <div className="flex flex-col gap-3.5 w-full flex-1 min-h-0 overflow-hidden">
 
       {/* ── Step Progress Tracker ── */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm px-6 py-4">
@@ -330,7 +330,7 @@ export function WorkspaceView({
       )}
 
       {/* ── Side-by-Side Preview Tables ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 h-[680px]">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 flex-1 min-h-0">
         {/* SAP Panel */}
         <div className="flex flex-col bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden h-full">
           <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center shrink-0">
@@ -413,22 +413,7 @@ export function WorkspaceView({
         </div>
       </div>
 
-      {/* ── Fallback Compare Button (when not ready) ── */}
-      {!readyToCompare && (
-        <div className="flex justify-center pb-4">
-          <button
-            onClick={handleCompare}
-            disabled={!readyToCompare || uiState.comparison.status === AsyncStatus.Loading}
-            className="flex items-center gap-2 px-8 py-3 bg-[#0e1734] text-white rounded-xl text-sm font-semibold transition-all shadow-md hover:bg-[#16224c] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-          >
-            {uiState.comparison.status === AsyncStatus.Loading ? (
-              <><LoaderCircle className="w-4 h-4 animate-spin" /> Running...</>
-            ) : (
-              <><GitCompareArrows className="w-4 h-4" /> Compare & Reconcile</>
-            )}
-          </button>
-        </div>
-      )}
+
     </div>
   );
 }

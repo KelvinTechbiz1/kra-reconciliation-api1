@@ -58,7 +58,7 @@ export function ReconciliationResultsView({
   };
 
   return (
-    <div className="flex flex-col gap-6 w-full animate-fade-in">
+    <div className="flex flex-col gap-4 w-full h-full min-h-0 flex-1 overflow-hidden animate-fade-in">
       <div className="flex items-center justify-between bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
         <div className="flex items-center gap-6">
           <button 

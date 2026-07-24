@@ -49,9 +49,9 @@ export default function DashboardLayout({
   }
 
   return (
-    <div suppressHydrationWarning className="min-h-screen bg-slate-50 flex flex-col">
+    <div suppressHydrationWarning className="h-screen bg-slate-50 flex flex-col overflow-hidden">
       <Header />
-      <main className="flex-1 w-full px-8 py-8 flex flex-col gap-8">
+      <main className="flex-1 w-full px-8 py-4 flex flex-col min-h-0 overflow-hidden">
         {children}
       </main>
     </div>
