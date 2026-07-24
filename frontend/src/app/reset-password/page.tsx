@@ -199,8 +199,8 @@ function ResetPasswordForm() {
       )}
 
       {username && (
-        <div className="p-3 bg-blue-50/60 border border-blue-100 rounded-xl text-xs text-blue-900 flex items-center gap-2 font-medium">
-          <KeyRound className="w-4 h-4 text-blue-600 shrink-0" />
+        <div className="p-3 bg-slate-100/80 border border-slate-200 rounded-xl text-xs text-[#0e1734] flex items-center gap-2 font-medium">
+          <KeyRound className="w-4 h-4 text-[#0e1734] shrink-0" />
           <span>Resetting password for user: <strong>@{username}</strong></span>
         </div>
       )}

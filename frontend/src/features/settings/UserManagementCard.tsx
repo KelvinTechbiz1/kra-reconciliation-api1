@@ -526,7 +526,7 @@ export function UserManagementCard({ users, companies = [], currentUserId, onSav
         const err = await res.json();
         throw new Error(err.detail || "Failed to send reset email.");
       }
-      notify(`Password reset link successfully sent to ${user.email} via SendGrid.`, "success");
+      notify(`Password reset link successfully sent to ${user.email} .`, "success");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       notify(msg || "An error occurred while sending email.", "error");
@@ -661,10 +661,10 @@ export function UserManagementCard({ users, companies = [], currentUserId, onSav
                         <div className="flex items-center gap-3">
                           <div
                             className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${user.role === "admin"
-                                ? "bg-violet-100 text-violet-800"
-                                : user.role === "checker"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : "bg-slate-100 text-slate-700"
+                              ? "bg-violet-100 text-violet-800"
+                              : user.role === "checker"
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-slate-100 text-slate-700"
                               }`}
                           >
                             {(user.full_name || user.username)[0].toUpperCase()}
@@ -745,7 +745,7 @@ export function UserManagementCard({ users, companies = [], currentUserId, onSav
                             onClick={() => handleSendResetEmail(user)}
                             disabled={sendingEmailId === user.id}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer disabled:opacity-50"
-                            title="Send Password Reset Email via SendGrid"
+                            title="Send Password Reset Email"
                           >
                             {sendingEmailId === user.id ? (
                               <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
