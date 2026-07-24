@@ -120,6 +120,7 @@ function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps
           : err.detail;
         throw new Error(detailMsg || "Failed to create user.");
       }
+      notify(`User account @${username} created successfully.`, "success");
       onCreated();
       onClose();
     } catch (err: unknown) {
@@ -285,6 +286,7 @@ function ResetPasswordModal({ user, onClose, onReset }: ResetPasswordModalProps)
           : err.detail;
         throw new Error(detailMsg || "Failed to reset password.");
       }
+      notify(`Password reset successfully for @${user.username}.`, "success");
       setSuccess(true);
       onReset();
     } catch (err: unknown) {
@@ -388,6 +390,7 @@ function EditUserRow({ user, companies, onSaved, onCancel }: EditUserRowProps) {
         const err = await res.json();
         throw new Error(err.detail || "Failed to save.");
       }
+      notify(`User profile @${username} updated successfully.`, "success");
       onSaved();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -505,18 +508,26 @@ export function UserManagementCard({ users, companies = [], currentUserId, onSav
     return matchesSearch && matchesCompany;
   });
 
+  const { notify } = useToast();
+
   const handleToggleActive = async (user: UserRecord) => {
     if (user.id === currentUserId) return;
     setTogglingId(user.id);
     try {
-      await fetchWithAuth(`/users/${user.id}`, {
+      const res = await fetchWithAuth(`/users/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ is_active: !user.is_active }),
       });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Failed to update user status.");
+      }
+      notify(`User @${user.username} ${user.is_active ? "deactivated" : "activated"} successfully.`, "success");
       onSaved();
-    } catch {
-      // stay silent on network error; parent refresh handles update
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      notify(msg || "An error occurred while updating status.", "error");
     } finally {
       setTogglingId(null);
     }

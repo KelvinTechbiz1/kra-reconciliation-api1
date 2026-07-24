@@ -92,6 +92,7 @@ function CreateCompanyModal({ onClose, onCreated }: CreateCompanyModalProps) {
         const err = await res.json();
         throw new Error(err.detail || "Failed to create company profile.");
       }
+      notify(`Company profile "${name.trim()}" created successfully.`, "success");
       onCreated();
       onClose();
     } catch (err: unknown) {
@@ -251,6 +252,7 @@ function EditCompanyModal({ company, onClose, onSaved }: EditCompanyModalProps) 
         const err = await res.json();
         throw new Error(err.detail || "Failed to update company.");
       }
+      notify(`Company profile "${name.trim()}" updated successfully.`, "success");
       onSaved();
       onClose();
     } catch (err: unknown) {
