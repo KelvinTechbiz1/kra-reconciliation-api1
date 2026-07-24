@@ -119,7 +119,7 @@ def send_password_reset_email(to_email: str, username: str, reset_link: str) -> 
           <!-- Footer -->
           <tr>
             <td style="background-color:#f8fafc; border-top:1px solid #e2e8f0; padding:16px 32px; text-align:center; font-size:11px; color:#94a3b8;">
-              &copy; {app_name}. Powered by {settings.mail_from_name}.
+              &copy; {app_name}. Powered by Techbiz Group.
             </td>
           </tr>
 
@@ -210,7 +210,7 @@ def send_welcome_account_email(to_email: str, username: str, password: str, full
           <!-- Footer -->
           <tr>
             <td style="background-color:#f8fafc; border-top:1px solid #e2e8f0; padding:16px 32px; text-align:center; font-size:11px; color:#94a3b8;">
-              &copy; {app_name}. Powered by {settings.mail_from_name}.
+              &copy; {app_name}. Powered by Techbiz Group.
             </td>
           </tr>
 

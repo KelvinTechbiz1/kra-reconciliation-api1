@@ -91,3 +91,5 @@ UI-UX/
 !.env.example
 !.gitignore
 !docs/
+.env.example
+deploy/docker-compose.yml
