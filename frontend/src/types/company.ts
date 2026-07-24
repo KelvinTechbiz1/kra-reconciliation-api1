@@ -15,7 +15,7 @@ export interface UserRecord {
 
 export interface UserCreatePayload {
   username: string;
-  password: string;
+  password?: string;
   email?: string;
   full_name?: string;
   role: UserRole;

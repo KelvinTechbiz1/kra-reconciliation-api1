@@ -61,18 +61,18 @@ export default function LoginPage() {
       {/* Background Subtle Pattern */}
       <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:24px_24px] opacity-60 pointer-events-none" />
 
-      <div className="w-full max-w-4xl bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden grid grid-cols-1 md:grid-cols-12 relative z-10">
+      <div className="w-full max-w-5xl bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden grid grid-cols-1 md:grid-cols-12 relative z-10">
 
         {/* Left Side: Simple Clean Login Form */}
-        <div className="md:col-span-6 p-8 sm:p-10 bg-white flex flex-col justify-between">
+        <div className="md:col-span-6 lg:col-span-5 p-6 sm:p-8 lg:p-10 bg-white flex flex-col justify-between">
           <div>
-            <div className="mb-8 space-y-2">
+            <div className="mb-6 sm:mb-8 space-y-2">
               <Image
                 src="/ushuru-lens-logo.svg"
                 alt="Ushuru Lens Logo"
                 width={400}
                 height={108}
-                className="w-full max-w-[280px] sm:max-w-[320px] md:max-w-[340px] h-auto object-contain -ml-1"
+                className="w-full max-w-[260px] sm:max-w-[300px] md:max-w-[320px] h-auto object-contain -ml-1"
                 priority
               />
               <p className="text-xs text-slate-500 font-medium">
@@ -82,7 +82,7 @@ export default function LoginPage() {
 
             {/* Error Banner */}
             {error && (
-              <div className="mb-6 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-start gap-2.5">
+              <div className="mb-5 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-start gap-2.5">
                 <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                 <div className="font-medium">{error}</div>
               </div>
@@ -183,13 +183,13 @@ export default function LoginPage() {
         </div>
 
         {/* Right Side: Image Only */}
-        <div className="md:col-span-6 min-h-[320px] md:min-h-[460px] relative overflow-hidden bg-slate-900">
+        <div className="md:col-span-6 lg:col-span-7 min-h-[340px] md:min-h-[480px] relative overflow-hidden bg-[#131d25]">
           <Image
-            src="/login.png"
+            src="/login2.png"
             alt="System Banner"
             fill
             priority
-            className="object-cover"
+            className="object-cover object-left md:object-[8%_center]"
           />
         </div>
 

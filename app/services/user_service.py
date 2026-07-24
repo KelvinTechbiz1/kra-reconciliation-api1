@@ -7,21 +7,45 @@ from app.core.security import hash_password, verify_password
 from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate
 
+import secrets
+
 ALLOWED_ROLES = {"admin", "checker"}
 
 
+def generate_secure_password(length: int = 14) -> str:
+    lowers = "abcdefghjkmnpqrstuvwxyz"
+    uppers = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+    digits = "23456789"
+    specials = "!@#$%^&*()_+-="
+    all_chars = lowers + uppers + digits + specials
+
+    password_chars = [
+        secrets.choice(lowers),
+        secrets.choice(uppers),
+        secrets.choice(digits),
+        secrets.choice(specials),
+    ]
+    for _ in range(length - 4):
+        password_chars.append(secrets.choice(all_chars))
+
+    secrets.SystemRandom().shuffle(password_chars)
+    return "".join(password_chars)
+
+
 def create_user(db: Session, user_in: UserCreate) -> User:
+    raw_password = user_in.password if user_in.password else generate_secure_password()
     user = User(
         username=user_in.username,
         email=user_in.email,
         full_name=user_in.full_name,
-        password_hash=hash_password(user_in.password),
+        password_hash=hash_password(raw_password),
         role=user_in.role,
         company_id=user_in.company_id,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
+    user.generated_password = raw_password
     return user
 
 

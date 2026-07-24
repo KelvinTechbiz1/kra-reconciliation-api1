@@ -21,7 +21,7 @@ def validate_password_complexity(v: str) -> str:
 
 class UserCreate(BaseModel):
     username: str = Field(min_length=1, description="Username")
-    password: str = Field(min_length=8, description="Password, minimum 8 characters with policy requirements")
+    password: Optional[str] = Field(default=None, description="Password, minimum 8 characters with policy requirements (auto-generated if omitted)")
     email: str | None = Field(default=None, description="Email address")
     full_name: str | None = Field(default=None, description="Display name")
     role: str = Field(default="checker", description="User role: admin or checker")
@@ -36,8 +36,10 @@ class UserCreate(BaseModel):
 
     @field_validator("password")
     @classmethod
-    def validate_password(cls, v: str) -> str:
-        return validate_password_complexity(v)
+    def validate_password(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v != "":
+            return validate_password_complexity(v)
+        return v
 
 
 class UserUpdate(BaseModel):
@@ -91,6 +93,7 @@ class UserResponse(BaseModel):
     last_login_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+    generated_password: str | None = None
 
     model_config = {"from_attributes": True}
 

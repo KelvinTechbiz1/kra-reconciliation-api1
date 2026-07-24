@@ -10,6 +10,8 @@ from app.core.security import create_access_token, hash_password
 from app.models.company import Company
 from app.models.user import User
 
+import os
+
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test_users.db"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -17,6 +19,7 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 @pytest.fixture(name="db_session", scope="function")
 def fixture_db_session():
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     db = TestingSessionLocal()
     try:
@@ -24,6 +27,11 @@ def fixture_db_session():
     finally:
         db.close()
         Base.metadata.drop_all(bind=engine)
+        if os.path.exists("./test_users.db"):
+            try:
+                os.remove("./test_users.db")
+            except OSError:
+                pass
 
 
 @pytest.fixture(name="client", scope="function")
@@ -154,6 +162,20 @@ def test_user_management_and_password_reset(client, db_session):
         headers=headers_c1,
     )
     assert invalid_role_res.status_code == 422
+
+    # 3d. Creating user without providing a password should auto-generate a compliant password
+    create_auto_res = client.post(
+        "/api/v1/users",
+        json={
+            "username": "c1_auto_pass_member",
+            "role": "checker",
+        },
+        headers=headers_c1,
+    )
+    assert create_auto_res.status_code == 201
+    auto_data = create_auto_res.json()
+    assert "generated_password" in auto_data
+    assert len(auto_data["generated_password"]) >= 8
 
     # 4. Company 1 Admin updates username of C1 worker (Should Succeed)
     update_res = client.patch(

@@ -10,6 +10,7 @@ import {
   UserPlus,
   ShieldCheck,
   Eye,
+  EyeOff,
   Edit3,
   X,
   Save,
@@ -24,9 +25,12 @@ import {
   Building2,
   Globe,
   Search,
+  Copy,
+  Check,
+  RefreshCw,
 } from "lucide-react";
 
-import { validatePasswordPolicy } from "@/lib/passwordPolicy";
+import { validatePasswordPolicy, generateAutoPassword } from "@/lib/passwordPolicy";
 import { PasswordStrengthIndicator } from "@/components/common/PasswordStrengthIndicator";
 
 interface UserManagementCardProps {
@@ -78,26 +82,36 @@ interface CreateUserModalProps {
 function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps) {
   const [mounted, setMounted] = useState(false);
   const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState(() => generateAutoPassword());
+  const [showPassword, setShowPassword] = useState(true);
+  const [copied, setCopied] = useState(false);
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<UserRole>("checker");
   const [companyId, setCompanyId] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState<{ username: string; password: string } | null>(null);
   const { notify } = useToast();
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  const handleRegeneratePassword = () => {
+    const newPwd = generateAutoPassword();
+    setPassword(newPwd);
+    setCopied(false);
+  };
+
+  const handleCopyPassword = (textToCopy: string) => {
+    navigator.clipboard.writeText(textToCopy);
+    setCopied(true);
+    notify("Copied to clipboard!", "success");
+    setTimeout(() => setCopied(false), 2500);
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const policy = validatePasswordPolicy(password);
-    if (!policy.isValid) {
-      notify("Password does not meet complexity requirements. Please satisfy all policy conditions.", "error");
-      return;
-    }
 
     setSaving(true);
     try {
@@ -121,9 +135,12 @@ function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps
           : err.detail;
         throw new Error(detailMsg || "Failed to create user.");
       }
+      const data = await res.json();
+      const finalPassword = data.generated_password || password;
+
+      setCreatedCredentials({ username, password: finalPassword });
       notify(`User account @${username} created successfully.`, "success");
       onCreated();
-      onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       notify(msg || "An error occurred.", "error");
@@ -140,106 +157,193 @@ function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <UserPlus className="w-5 h-5 text-blue-600" />
-            <h3 className="font-bold text-slate-900 text-sm">Create New Team Account</h3>
+            <h3 className="font-bold text-slate-900 text-sm">
+              {createdCredentials ? "Account Created Successfully" : "Create New Team Account"}
+            </h3>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
-        <form onSubmit={handleCreate} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5 col-span-2">
-              <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Username *</label>
-              <input
-                type="text"
-                required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="john.doe"
-                className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium placeholder:text-slate-400"
-              />
+
+        {createdCredentials ? (
+          <div className="p-6 space-y-5 text-center">
+            <div className="w-12 h-12 bg-emerald-100 border border-emerald-200 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+              <CheckCircle2 className="w-7 h-7" />
             </div>
-            <div className="space-y-1.5 col-span-2">
-              <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Full Name</label>
-              <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="John Doe"
-                className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400"
-              />
+            <div>
+              <h4 className="font-bold text-slate-900 text-base">Account @{createdCredentials.username} is Ready</h4>
+              <p className="text-xs text-slate-500 mt-1">
+                Please copy the auto-generated credentials below to share with the user.
+              </p>
             </div>
-            <div className="space-y-1.5 col-span-2">
-              <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Email Address</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="john@company.com"
-                className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400"
-              />
+
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-left space-y-3">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-500 font-medium uppercase tracking-wider">Username</span>
+                <span className="font-mono font-bold text-slate-900">@{createdCredentials.username}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs border-t border-slate-200/60 pt-2.5">
+                <span className="text-slate-500 font-medium uppercase tracking-wider">Password</span>
+                <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                  {createdCredentials.password}
+                </span>
+              </div>
             </div>
-            <div className="space-y-1.5 col-span-2">
-              <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Password *</label>
-              <input
-                type="password"
-                required
-                minLength={8}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="SecureP@ss123"
-                className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400 font-mono"
-              />
-              <PasswordStrengthIndicator password={password} />
-            </div>
-            <div className="space-y-1.5 col-span-2">
-              <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Role Access *</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as UserRole)}
-                className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-800 text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() =>
+                  handleCopyPassword(
+                    `Username: ${createdCredentials.username}\nPassword: ${createdCredentials.password}`
+                  )
+                }
+                className="flex-1 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-lg text-sm border border-blue-200 flex items-center justify-center gap-2 cursor-pointer transition-colors"
               >
-                <option value="checker">Checker</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            {/* Company Scope Selection */}
-            <div className="space-y-1.5 col-span-2">
-              <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-slate-500" />
-                Assigned Company Entity Scope
-              </label>
-              <select
-                value={companyId}
-                onChange={(e) => setCompanyId(e.target.value)}
-                className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-800 text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                {copied ? "Credentials Copied!" : "Copy Account Details"}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 py-2.5 bg-[#0e1734] hover:bg-[#16224c] text-white rounded-lg text-sm font-semibold cursor-pointer transition-colors"
               >
-                <option value="">Global Enterprise Scope (All Companies)</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} {c.kra_pin ? `(${c.kra_pin})` : ""}
-                  </option>
-                ))}
-              </select>
-              <span className="text-[11px] text-slate-500 block">
-                Assigning a specific company restricts user activity to that entity only.
-              </span>
+                Done
+              </button>
             </div>
           </div>
-          <div className="pt-3 flex justify-end gap-3 border-t border-slate-100">
-            <button type="button" onClick={onClose} className="px-4 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium transition-colors cursor-pointer">
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0e1734] hover:bg-[#16224c] active:bg-[#080d21] text-white rounded-lg text-sm font-semibold shadow-sm transition-all duration-150 cursor-pointer disabled:opacity-50"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
-              Create Account
-            </button>
-          </div>
-        </form>
+        ) : (
+          <form onSubmit={handleCreate} className="p-6 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5 col-span-2">
+                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Username *</label>
+                <input
+                  type="text"
+                  required
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="john.doe"
+                  className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium placeholder:text-slate-400"
+                />
+              </div>
+              <div className="space-y-1.5 col-span-2">
+                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Full Name</label>
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="John Doe"
+                  className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400"
+                />
+              </div>
+              <div className="space-y-1.5 col-span-2">
+                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Email Address</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="john@company.com"
+                  className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400"
+                />
+              </div>
+
+              {/* Auto-Generated Password Section */}
+              <div className="space-y-1.5 col-span-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <KeyRound className="w-3.5 h-3.5 text-blue-600" />
+                    Auto-Generated Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleRegeneratePassword}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <RefreshCw className="w-3 h-3" /> Regenerate
+                  </button>
+                </div>
+                <div className="relative flex items-center">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    readOnly
+                    value={password}
+                    className="w-full pl-3.5 pr-24 py-2 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm font-mono font-bold tracking-wide select-all focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                  <div className="absolute right-1.5 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="p-1.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      title={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyPassword(password)}
+                      className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
+                      {copied ? "Copied" : "Copy"}
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-500 flex items-center gap-1 pt-0.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  Auto-generated secure password meeting enterprise security rules.
+                </p>
+              </div>
+
+              <div className="space-y-1.5 col-span-2">
+                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Role Access *</label>
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as UserRole)}
+                  className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-800 text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                >
+                  <option value="checker">Checker</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              {/* Company Scope Selection */}
+              <div className="space-y-1.5 col-span-2">
+                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                  Assigned Company Entity Scope
+                </label>
+                <select
+                  value={companyId}
+                  onChange={(e) => setCompanyId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-800 text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                >
+                  <option value="">Global Enterprise Scope (All Companies)</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.kra_pin ? `(${c.kra_pin})` : ""}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[11px] text-slate-500 block">
+                  Assigning a specific company restricts user activity to that entity only.
+                </span>
+              </div>
+            </div>
+            <div className="pt-3 flex justify-end gap-3 border-t border-slate-100">
+              <button type="button" onClick={onClose} className="px-4 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium transition-colors cursor-pointer">
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0e1734] hover:bg-[#16224c] active:bg-[#080d21] text-white rounded-lg text-sm font-semibold shadow-sm transition-all duration-150 cursor-pointer disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                Create Account
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>,
     document.body
@@ -263,6 +367,12 @@ function ResetPasswordModal({ user, onClose, onReset }: ResetPasswordModalProps)
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const handleAutoGenerate = () => {
+    const pwd = generateAutoPassword();
+    setNewPassword(pwd);
+    notify("Auto-generated compliant password.", "info");
+  };
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -320,9 +430,18 @@ function ResetPasswordModal({ user, onClose, onReset }: ResetPasswordModalProps)
           )}
           {!success && (
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">New Password *</label>
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">New Password *</label>
+                <button
+                  type="button"
+                  onClick={handleAutoGenerate}
+                  className="text-xs text-amber-600 hover:text-amber-800 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <RefreshCw className="w-3 h-3" /> Auto-Generate
+                </button>
+              </div>
               <input
-                type="password"
+                type="text"
                 required
                 minLength={8}
                 value={newPassword}

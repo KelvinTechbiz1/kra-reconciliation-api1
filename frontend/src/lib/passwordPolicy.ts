@@ -34,3 +34,31 @@ export function validatePasswordPolicy(password: string): PasswordPolicyResult {
     errors,
   };
 }
+
+export function generateAutoPassword(length = 14): string {
+  const lowers = "abcdefghjkmnpqrstuvwxyz";
+  const uppers = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const digits = "23456789";
+  const specials = "!@#$%^&*()_+-=";
+  const all = lowers + uppers + digits + specials;
+
+  const getRandomChar = (str: string) => str[Math.floor(Math.random() * str.length)];
+
+  const passwordChars = [
+    getRandomChar(lowers),
+    getRandomChar(uppers),
+    getRandomChar(digits),
+    getRandomChar(specials),
+  ];
+
+  for (let i = passwordChars.length; i < length; i++) {
+    passwordChars.push(getRandomChar(all));
+  }
+
+  for (let i = passwordChars.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [passwordChars[i], passwordChars[j]] = [passwordChars[j], passwordChars[i]];
+  }
+
+  return passwordChars.join("");
+}
