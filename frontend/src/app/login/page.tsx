@@ -38,8 +38,19 @@ export default function LoginPage() {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.detail || "Invalid credentials. Please check your username and password.");
+        let errorMessage = "Invalid credentials. Please check your username and password.";
+        try {
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const data = await response.json();
+            if (data?.detail) {
+              errorMessage = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail);
+            }
+          }
+        } catch {
+          // Fall back to default error message if JSON parsing fails
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
