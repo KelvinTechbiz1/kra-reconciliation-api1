@@ -122,3 +122,13 @@ def reset_password(db: Session, user_id: int, new_password: str) -> Optional[Use
     db.commit()
     db.refresh(user)
     return user
+
+
+def delete_user(db: Session, user_id: int) -> bool:
+    user = get_by_id(db, user_id)
+    if user is None:
+        return False
+    db.delete(user)
+    db.commit()
+    return True
+

@@ -178,3 +178,33 @@ def send_reset_email(
 
     return {"detail": f"Password reset email sent successfully to {target_user.email}."}
 
+
+@router.delete("/{user_id}", status_code=status.HTTP_200_OK)
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a user account. Admins only; users cannot delete their own account."""
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot delete your own account.",
+        )
+
+    target_user = user_service.get_by_id(db, user_id)
+    if target_user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+    if current_user.company_id is not None:
+        if current_user.role != "admin" or target_user.company_id != current_user.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only manage users within your company.",
+            )
+
+    username = target_user.username
+    user_service.delete_user(db, user_id)
+    return {"detail": f"User @{username} deleted successfully."}
+
+

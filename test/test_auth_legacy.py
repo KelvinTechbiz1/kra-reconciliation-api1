@@ -42,7 +42,7 @@ def test_auth_flow():
     # 1. Register a user
     register_payload = {
         "username": "testuser",
-        "password": "strongpassword123",
+        "password": "StrongPassword123!",
         "email": "test@example.com",
         "role": "checker",
     }
@@ -57,7 +57,7 @@ def test_auth_flow():
     # 2. Login with form data (OAuth2PasswordRequestForm)
     response = client.post(
         "/api/v1/auth/token",
-        data={"username": "testuser", "password": "strongpassword123"},
+        data={"username": "testuser", "password": "StrongPassword123!"},
     )
     print("Login response status:", response.status_code)
     print("Login response JSON:", response.json())
@@ -119,7 +119,7 @@ def test_auth_flow():
         "/api/v1/auth/register",
         json={
             "username": "testuser",
-            "password": "anotherpassword123",
+            "password": "AnotherPassword123!",
         },
     )
     print("Duplicate register status:", response.status_code)

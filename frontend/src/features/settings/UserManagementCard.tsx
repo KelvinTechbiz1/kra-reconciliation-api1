@@ -28,6 +28,7 @@ import {
   Copy,
   Check,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 
 import { validatePasswordPolicy, generateAutoPassword } from "@/lib/passwordPolicy";
@@ -416,6 +417,111 @@ function ResetPasswordModal({ user, onClose, onReset }: ResetPasswordModalProps)
   );
 }
 
+// --- Delete User Confirmation Modal ---
+interface DeleteUserModalProps {
+  user: UserRecord;
+  onClose: () => void;
+  onDeleted: () => void;
+}
+
+function DeleteUserModal({ user, onClose, onDeleted }: DeleteUserModalProps) {
+  const [mounted, setMounted] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const { notify } = useToast();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetchWithAuth(`/users/${user.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Failed to delete user.");
+      }
+      notify(`User account @${user.username} deleted successfully.`, "success");
+      onDeleted();
+      onClose();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      notify(msg || "An error occurred while deleting account.", "error");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-rose-100 border border-rose-200 text-rose-600 flex items-center justify-center">
+              <Trash2 className="w-4 h-4" />
+            </div>
+            <h3 className="font-bold text-slate-900 text-sm">Delete User Account</h3>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 text-xs text-rose-900 space-y-2">
+            <div className="font-bold flex items-center gap-1.5 text-rose-700">
+              <ShieldAlert className="w-4 h-4 shrink-0" /> Permanent Action Warning
+            </div>
+            <p className="leading-relaxed">
+              Are you sure you want to permanently delete user <span className="font-bold font-mono text-slate-900">@{user.username}</span>? This action cannot be undone and will remove their access profile.
+            </p>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs space-y-1.5">
+            <div className="flex justify-between">
+              <span className="text-slate-500 font-medium">User Name:</span>
+              <span className="font-semibold text-slate-900">{user.full_name || user.username}</span>
+            </div>
+            {user.email && (
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">Email:</span>
+                <span className="font-medium text-slate-800">{user.email}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-slate-500 font-medium">Role Access:</span>
+              <span className="font-semibold text-slate-800 capitalize">{user.role}</span>
+            </div>
+          </div>
+
+          <div className="pt-2 flex justify-end gap-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-lg text-sm font-semibold flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-colors shadow-sm"
+            >
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              Delete Account
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // --- Edit User Inline Row ---
 interface EditUserRowProps {
   user: UserRecord;
@@ -549,6 +655,7 @@ export function UserManagementCard({ users, companies = [], currentUserId, onSav
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [resetUserId, setResetUserId] = useState<number | null>(null);
+  const [deleteUserId, setDeleteUserId] = useState<number | null>(null);
   const [togglingId, setTogglingId] = useState<number | null>(null);
   const [sendingEmailId, setSendingEmailId] = useState<number | null>(null);
 
@@ -620,6 +727,7 @@ export function UserManagementCard({ users, companies = [], currentUserId, onSav
   };
 
   const resetUser = users.find((u) => u.id === resetUserId);
+  const deleteUser = users.find((u) => u.id === deleteUserId);
 
   return (
     <>
@@ -635,6 +743,13 @@ export function UserManagementCard({ users, companies = [], currentUserId, onSav
           user={resetUser}
           onClose={() => setResetUserId(null)}
           onReset={onSaved}
+        />
+      )}
+      {deleteUser && (
+        <DeleteUserModal
+          user={deleteUser}
+          onClose={() => setDeleteUserId(null)}
+          onDeleted={onSaved}
         />
       )}
 
@@ -820,6 +935,14 @@ export function UserManagementCard({ users, companies = [], currentUserId, onSav
                             title="Manual password override"
                           >
                             <KeyRound className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteUserId(user.id)}
+                            disabled={user.id === currentUserId}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                            title={user.id === currentUserId ? "You cannot delete your own account" : "Delete user account"}
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
