@@ -136,21 +136,26 @@ function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
           <div className="flex items-center gap-3">
-            <UserPlus className="w-5 h-5 text-blue-600" />
-            <h3 className="font-bold text-slate-900 text-sm">
-              {createdUser ? "Account Created Successfully" : "Create New Team Account"}
-            </h3>
+            <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+              <UserPlus className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm">
+                {createdUser ? "Account Created Successfully" : "Create New Team Account"}
+              </h3>
+              <p className="text-xs text-slate-500">Provision credentials and scope permissions</p>
+            </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition-colors cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {createdUser ? (
-          <div className="p-6 space-y-5 text-center">
+          <div className="p-6 space-y-5 text-center flex-1 overflow-y-auto">
             <div className="w-12 h-12 bg-emerald-100 border border-emerald-200 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-7 h-7" />
             </div>
@@ -192,91 +197,95 @@ function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps
             </div>
           </div>
         ) : (
-          <form onSubmit={handleCreate} className="p-6 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5 col-span-2">
-                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Username *</label>
-                <input
-                  type="text"
-                  required
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="john.doe"
-                  className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium placeholder:text-slate-400"
-                />
-              </div>
-              <div className="space-y-1.5 col-span-2">
-                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Full Name</label>
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="John Doe"
-                  className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400"
-                />
-              </div>
-              <div className="space-y-1.5 col-span-2">
-                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Email Address</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="john@company.com"
-                  className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400"
-                />
-              </div>
-
-              {/* Password Automated Email Notice */}
-              <div className="space-y-1.5 col-span-2 bg-blue-50/60 p-3.5 rounded-xl border border-blue-100">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
-                  <h4 className="text-xs font-semibold text-slate-800">Automated Secure Password</h4>
+          <>
+            <form onSubmit={handleCreate} id="create-user-form" className="p-6 space-y-4 flex-1 overflow-y-auto text-xs">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5 col-span-2">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Username *</label>
+                  <input
+                    type="text"
+                    required
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="john.doe"
+                    className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium placeholder:text-slate-400"
+                  />
                 </div>
-                <p className="text-[12px] text-slate-600 leading-relaxed">
-                  A secure password will be automatically generated and emailed directly to the user upon account creation.
-                </p>
-              </div>
+                <div className="space-y-1.5 col-span-2">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Full Name</label>
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="John Doe"
+                    className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400"
+                  />
+                </div>
+                <div className="space-y-1.5 col-span-2">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Email Address</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="john@company.com"
+                    className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400"
+                  />
+                </div>
 
-              <div className="space-y-1.5 col-span-2">
-                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Role Access *</label>
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as UserRole)}
-                  className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-800 text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                >
-                  <option value="checker">Checker</option>
-                  <option value="admin">Admin</option>
-                </select>
+                {/* Password Automated Email Notice */}
+                <div className="space-y-1.5 col-span-2 bg-blue-50/60 p-3.5 rounded-xl border border-blue-100">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                    <h4 className="text-xs font-semibold text-slate-800">Automated Secure Password</h4>
+                  </div>
+                  <p className="text-[12px] text-slate-600 leading-relaxed">
+                    A secure password will be automatically generated and emailed directly to the user upon account creation.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5 col-span-2">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Role Access *</label>
+                  <select
+                    value={role}
+                    onChange={(e) => setRole(e.target.value as UserRole)}
+                    className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-800 text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  >
+                    <option value="checker">Checker</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+
+                {/* Company Scope Selection */}
+                <div className="space-y-1.5 col-span-2">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                    Assigned Company Entity Scope
+                  </label>
+                  <select
+                    value={companyId}
+                    onChange={(e) => setCompanyId(e.target.value)}
+                    className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-800 text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  >
+                    <option value="">Global Enterprise Scope (All Companies)</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} {c.kra_pin ? `(${c.kra_pin})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-[11px] text-slate-500 block">
+                    Assigning a specific company restricts user activity to that entity only.
+                  </span>
+                </div>
               </div>
-              {/* Company Scope Selection */}
-              <div className="space-y-1.5 col-span-2">
-                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-slate-500" />
-                  Assigned Company Entity Scope
-                </label>
-                <select
-                  value={companyId}
-                  onChange={(e) => setCompanyId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-800 text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                >
-                  <option value="">Global Enterprise Scope (All Companies)</option>
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} {c.kra_pin ? `(${c.kra_pin})` : ""}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-[11px] text-slate-500 block">
-                  Assigning a specific company restricts user activity to that entity only.
-                </span>
-              </div>
-            </div>
-            <div className="pt-3 flex justify-end gap-3 border-t border-slate-100">
+            </form>
+            <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50 shrink-0">
               <button type="button" onClick={onClose} className="px-4 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium transition-colors cursor-pointer">
                 Cancel
               </button>
               <button
                 type="submit"
+                form="create-user-form"
                 disabled={saving}
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0e1734] hover:bg-[#16224c] active:bg-[#080d21] text-white rounded-lg text-sm font-semibold shadow-sm transition-all duration-150 cursor-pointer disabled:opacity-50"
               >
@@ -284,7 +293,7 @@ function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps
                 Create Account
               </button>
             </div>
-          </form>
+          </>
         )}
       </div>
     </div>,
@@ -355,17 +364,22 @@ function ResetPasswordModal({ user, onClose, onReset }: ResetPasswordModalProps)
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
           <div className="flex items-center gap-3">
-            <KeyRound className="w-5 h-5 text-amber-500" />
-            <h3 className="font-bold text-slate-900 text-sm">Reset Password — @{user.username}</h3>
+            <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+              <KeyRound className="w-5 h-5 text-amber-500" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm">Reset Password — @{user.username}</h3>
+              <p className="text-xs text-slate-500">Update account access credentials</p>
+            </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition-colors cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
-        <form onSubmit={handleReset} className="p-6 space-y-4">
+        <form onSubmit={handleReset} id="reset-password-form" className="p-6 space-y-4 flex-1 overflow-y-auto text-xs">
           {success && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-sm flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> Password reset successfully.
@@ -395,22 +409,23 @@ function ResetPasswordModal({ user, onClose, onReset }: ResetPasswordModalProps)
               <PasswordStrengthIndicator password={newPassword} />
             </div>
           )}
-          <div className="pt-2 flex justify-end gap-3">
-            <button type="button" onClick={onClose} className="px-4 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium cursor-pointer">
-              {success ? "Close" : "Cancel"}
-            </button>
-            {!success && (
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white rounded-lg text-sm font-semibold flex items-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
-                Reset Password
-              </button>
-            )}
-          </div>
         </form>
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50 shrink-0">
+          <button type="button" onClick={onClose} className="px-4 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium cursor-pointer">
+            {success ? "Close" : "Cancel"}
+          </button>
+          {!success && (
+            <button
+              type="submit"
+              form="reset-password-form"
+              disabled={saving}
+              className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white rounded-lg text-sm font-semibold flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+              Reset Password
+            </button>
+          )}
+        </div>
       </div>
     </div>,
     document.body
@@ -458,19 +473,22 @@ function DeleteUserModal({ user, onClose, onDeleted }: DeleteUserModalProps) {
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-rose-100 border border-rose-200 text-rose-600 flex items-center justify-center">
-              <Trash2 className="w-4 h-4" />
+            <div className="w-9 h-9 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+              <Trash2 className="w-5 h-5 text-rose-600" />
             </div>
-            <h3 className="font-bold text-slate-900 text-sm">Delete User Account</h3>
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm">Delete User Account</h3>
+              <p className="text-xs text-slate-500">Revoke permissions and remove user profile</p>
+            </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition-colors cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 flex-1 overflow-y-auto text-xs">
           <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 text-xs text-rose-900 space-y-2">
             <div className="font-bold flex items-center gap-1.5 text-rose-700">
               <ShieldAlert className="w-4 h-4 shrink-0" /> Permanent Action Warning
@@ -496,25 +514,25 @@ function DeleteUserModal({ user, onClose, onDeleted }: DeleteUserModalProps) {
               <span className="font-semibold text-slate-800 capitalize">{user.role}</span>
             </div>
           </div>
+        </div>
 
-          <div className="pt-2 flex justify-end gap-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={deleting}
-              className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-lg text-sm font-semibold flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-colors shadow-sm"
-            >
-              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-              Delete Account
-            </button>
-          </div>
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-lg text-sm font-semibold flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-colors shadow-sm"
+          >
+            {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            Delete Account
+          </button>
         </div>
       </div>
     </div>,

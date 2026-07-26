@@ -107,21 +107,23 @@ function CreateCompanyModal({ onClose, onCreated }: CreateCompanyModalProps) {
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
           <div className="flex items-center gap-3">
-            <Building2 className="w-5 h-5 text-[#0e1734]" />
+            <div className="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-[#0e1734] shrink-0">
+              <Building2 className="w-5 h-5 text-[#0e1734]" />
+            </div>
             <div>
               <h3 className="font-bold text-slate-900 text-sm">Onboard New Company Entity</h3>
               <p className="text-xs text-slate-500">Register subsidiary or multi-client parameters</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition-colors cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleCreate} className="p-6 space-y-4">
+        <form onSubmit={handleCreate} id="create-company-form" className="p-6 space-y-4 flex-1 overflow-y-auto text-xs">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Company Legal Name *</label>
             <input
@@ -186,25 +188,26 @@ function CreateCompanyModal({ onClose, onCreated }: CreateCompanyModalProps) {
               </select>
             </div>
           </div>
-
-          <div className="pt-3 flex justify-end gap-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0e1734] hover:bg-[#16224c] active:bg-[#080d21] text-white rounded-lg text-sm font-semibold shadow-sm transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Building2 className="w-4 h-4" />}
-              Create Company
-            </button>
-          </div>
         </form>
+
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="create-company-form"
+            disabled={saving}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0e1734] hover:bg-[#16224c] active:bg-[#080d21] text-white rounded-lg text-sm font-semibold shadow-sm transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Building2 className="w-4 h-4" />}
+            Create Company
+          </button>
+        </div>
       </div>
     </div>,
     document.body
@@ -267,18 +270,23 @@ function EditCompanyModal({ company, onClose, onSaved }: EditCompanyModalProps) 
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
           <div className="flex items-center gap-3">
-            <Edit3 className="w-5 h-5 text-blue-600" />
-            <h3 className="font-bold text-slate-900 text-sm">Edit Company Profile — #{company.id}</h3>
+            <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+              <Edit3 className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm">Edit Company Profile — #{company.id}</h3>
+              <p className="text-xs text-slate-500">Update legal entity details and operational settings</p>
+            </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition-colors cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleUpdate} className="p-6 space-y-4">
+        <form onSubmit={handleUpdate} id="edit-company-form" className="p-6 space-y-4 flex-1 overflow-y-auto text-xs">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Company Legal Name *</label>
             <input
@@ -341,25 +349,26 @@ function EditCompanyModal({ company, onClose, onSaved }: EditCompanyModalProps) 
               </select>
             </div>
           </div>
-
-          <div className="pt-3 flex justify-end gap-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0e1734] hover:bg-[#16224c] active:bg-[#080d21] text-white rounded-lg text-sm font-semibold shadow-sm transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              Save Changes
-            </button>
-          </div>
         </form>
+
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="edit-company-form"
+            disabled={saving}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0e1734] hover:bg-[#16224c] active:bg-[#080d21] text-white rounded-lg text-sm font-semibold shadow-sm transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            Save Changes
+          </button>
+        </div>
       </div>
     </div>,
     document.body

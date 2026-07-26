@@ -82,9 +82,9 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
               <KeyRound className="w-4 h-4" />
@@ -103,7 +103,7 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
         </div>
 
         {/* Body Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} id="change-password-form" className="p-6 space-y-4 flex-1 overflow-y-auto text-xs">
           {success && (
             <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-sm flex items-center gap-2.5">
               <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
@@ -166,29 +166,30 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
               </div>
             </>
           )}
-
-          {/* Footer Actions */}
-          <div className="pt-3 flex justify-end gap-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium transition-colors cursor-pointer"
-            >
-              {success ? "Close" : "Cancel"}
-            </button>
-
-            {!success && (
-              <button
-                type="submit"
-                disabled={saving}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0e1734] hover:bg-[#16224c] active:bg-[#080d21] text-white rounded-lg text-sm font-semibold shadow-sm transition-all duration-150 cursor-pointer disabled:opacity-50"
-              >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
-                Update Password
-              </button>
-            )}
-          </div>
         </form>
+
+        {/* Footer Actions */}
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium transition-colors cursor-pointer"
+          >
+            {success ? "Close" : "Cancel"}
+          </button>
+
+          {!success && (
+            <button
+              type="submit"
+              form="change-password-form"
+              disabled={saving}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0e1734] hover:bg-[#16224c] active:bg-[#080d21] text-white rounded-lg text-sm font-semibold shadow-sm transition-all duration-150 cursor-pointer disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+              Update Password
+            </button>
+          )}
+        </div>
       </div>
     </div>,
     document.body

@@ -238,20 +238,28 @@ class ERPProfileService:
 
     @classmethod
     def update_profile(
-        cls, db: Session, profile_id: int, company_id: int, payload: ImportProfileUpdate
+
+        cls, db: Session, profile_id: int, company_id: Optional[int], payload: ImportProfileUpdate
     ) -> ImportProfile:
         profile = db.query(ImportProfile).filter(
             ImportProfile.id == profile_id,
-            ImportProfile.company_id == company_id,
             ImportProfile.is_active == True,
         ).with_for_update().first()
 
         if not profile:
-            raise ValueError("Import profile not found, inactive, or belongs to system built-in presets.")
+            raise KeyError(f"Import profile ID {profile_id} not found or is inactive.")
+
+        if profile.is_builtin:
+            raise PermissionError("System built-in presets cannot be modified or deleted. Use the clone endpoint to create an editable company profile.")
+
+        if company_id is not None and profile.company_id is not None and profile.company_id != company_id:
+            raise KeyError(f"Import profile ID {profile_id} not found.")
+
+        target_company_id = profile.company_id or company_id
 
         if payload.name and payload.name.strip() != profile.name:
             dup = db.query(ImportProfile).filter(
-                ImportProfile.company_id == company_id,
+                ImportProfile.company_id == target_company_id,
                 ImportProfile.module == profile.module,
                 ImportProfile.name == payload.name.strip(),
                 ImportProfile.id != profile_id,
@@ -274,9 +282,9 @@ class ERPProfileService:
         if payload.validation_rules is not None:
             profile.validation_rules = payload.validation_rules.model_dump()
 
-        if payload.is_default is True:
+        if payload.is_default is True and target_company_id is not None:
             db.query(ImportProfile).filter(
-                ImportProfile.company_id == company_id,
+                ImportProfile.company_id == target_company_id,
                 ImportProfile.module == profile.module,
                 ImportProfile.id != profile_id,
             ).update({"is_default": False}, synchronize_session=False)
@@ -295,20 +303,23 @@ class ERPProfileService:
         return profile
 
     @classmethod
-    def set_default_profile(cls, db: Session, company_id: int, profile_id: int) -> ImportProfile:
+    def set_default_profile(cls, db: Session, company_id: Optional[int], profile_id: int) -> ImportProfile:
         with db.begin_nested():
             profile = db.query(ImportProfile).filter(
                 ImportProfile.id == profile_id,
-                (ImportProfile.company_id == company_id) | (ImportProfile.scope == ProfileScope.BUILTIN),
                 ImportProfile.is_active == True,
             ).with_for_update().first()
 
             if not profile:
-                raise ValueError("Import profile not found or inactive.")
+                raise KeyError(f"Import profile ID {profile_id} not found or is inactive.")
+
+            target_company_id = profile.company_id or company_id
+            if not target_company_id:
+                raise ValueError("Cannot set built-in profile as default without a valid company context.")
 
             # Clear previous defaults for this company & module
             db.query(ImportProfile).filter(
-                ImportProfile.company_id == company_id,
+                ImportProfile.company_id == target_company_id,
                 ImportProfile.module == profile.module,
                 ImportProfile.id != profile_id,
             ).update({"is_default": False}, synchronize_session=False)
@@ -327,7 +338,8 @@ class ERPProfileService:
         ).first()
 
         if not source:
-            raise ValueError(f"Source import profile ID {source_profile_id} not found.")
+            raise KeyError(f"Source import profile ID {source_profile_id} not found.")
+
 
         target_name = (new_name or f"{source.name} (Copy)").strip()
         dup = db.query(ImportProfile).filter(
