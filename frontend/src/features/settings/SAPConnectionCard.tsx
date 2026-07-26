@@ -336,24 +336,32 @@ export function SAPConnectionCard({
             )}
           </div>
 
-          <div className="space-y-2">
-            {Object.entries(testResult.steps).map(([stepKey, stepVal]) => (
-              <div
-                key={stepKey}
-                className="flex items-start gap-2.5 text-xs font-mono p-3 rounded-lg bg-white border border-slate-200/60 shadow-[0_1px_2px_rgba(0,0,0,0.01)]"
-              >
-                {stepVal.status === "pass" ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                ) : (
-                  <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                )}
-                <div>
-                  <span className="font-bold text-slate-700 capitalize">{stepKey.replace(/_/g, " ")}: </span>
-                  <span className="text-slate-600">{stepVal.message}</span>
+          {testResult.steps && (
+            <div className="space-y-2">
+              {Object.entries(testResult.steps || {}).map(([stepKey, stepVal]) => (
+                <div
+                  key={stepKey}
+                  className="flex items-start gap-2.5 text-xs font-mono p-3 rounded-lg bg-white border border-slate-200/60 shadow-[0_1px_2px_rgba(0,0,0,0.01)]"
+                >
+                  {stepVal?.status === "pass" ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                  )}
+                  <div>
+                    <span className="font-bold text-slate-700 capitalize">{stepKey.replace(/_/g, " ")}: </span>
+                    <span className="text-slate-600">{stepVal?.message}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
+
+          {testResult.error_message && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-xs font-mono">
+              {testResult.error_message}
+            </div>
+          )}
 
           {testResult.metadata && (
             <div className="grid grid-cols-2 gap-4 text-xs font-mono pt-3 border-t border-slate-200">

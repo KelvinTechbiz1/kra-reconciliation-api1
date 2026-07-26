@@ -26,10 +26,10 @@ router = APIRouter(prefix="/settings", tags=["Settings"])
 
 
 def require_admin_role(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "checker"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Administrator privileges required to modify system settings.",
+            detail="Administrator or checker privileges required to modify system settings.",
         )
     return current_user
 
