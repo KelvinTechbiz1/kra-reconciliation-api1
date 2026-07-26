@@ -13,6 +13,7 @@ class ReconciliationType(str, Enum):
 class InvoiceSource(str, Enum):
     SAP = "SAP"
     KRA = "KRA"
+    ERP = "ERP"
 
 
 class Invoice(BaseModel):
@@ -24,6 +25,8 @@ class Invoice(BaseModel):
     vat_group: str
     base_amount: Optional[Decimal] = None
     source: InvoiceSource
+    provider: Optional[str] = None
+
 
     @field_serializer("base_amount")
     def serialize_base_amount(self, base_amount: Optional[Decimal]) -> Optional[float]:

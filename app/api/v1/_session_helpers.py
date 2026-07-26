@@ -124,3 +124,102 @@ def upload_kra_csvs(
         "files": file_statuses,
         "invoices": all_invoices[:100],
     }
+
+
+def upload_erp_invoices(
+    db: Session,
+    current_user,
+    reconciliation_type: ReconciliationType,
+    files: list,
+    profile_id: int | None = None,
+    session_id: str | None = None,
+):
+    """Upload and parse ERP file (CSV/XLSX) using an ImportProfile snapshot. Initializes session if needed."""
+    from app.core.dependencies import get_active_session
+    from app.services.erp_profile_service import ERPProfileService
+    from app.services.erp_import_service import ERPImportService
+
+    company_id = current_user.company_id
+    if company_id is None:
+        from app.models.company import Company
+        comp = db.query(Company).order_by(Company.id.asc()).first()
+        company_id = comp.id if comp else None
+
+    # Resolve profile deterministically
+    profile = ERPProfileService.resolve_profile_for_import(db, company_id, reconciliation_type, profile_id)
+    snapshot = ERPProfileService.create_snapshot(profile)
+
+    # Initialize session or fetch existing
+    if session_id:
+        session = get_active_session(session_id=session_id, db=db, current_user=current_user)
+        if session.session_type != reconciliation_type:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Active session type is not for {reconciliation_type.value.capitalize()} reconciliation.",
+            )
+    else:
+        # Delete expired sessions
+        expiry_time = datetime.now(timezone.utc) - timedelta(minutes=SESSION_EXPIRY_MINUTES)
+        db.query(ReconciliationSession).filter(
+            ReconciliationSession.user_id == current_user.id,
+            ReconciliationSession.last_accessed_at < expiry_time,
+        ).delete()
+        db.commit()
+
+        today = date.today()
+        session = ReconciliationSession(
+            company_id=company_id,
+            user_id=current_user.id,
+            from_date=today.replace(day=1),
+            to_date=today,
+            session_type=reconciliation_type,
+            is_compared=False,
+        )
+        db.add(session)
+        db.commit()
+
+    # Save immutable profile snapshot to session
+    session.import_profile_id = profile.id
+    session.import_profile_name = profile.name
+    session.import_profile_version_used = profile.version
+    session.provider = profile.provider
+    session.source_format = profile.source_format.value
+    session.import_profile_snapshot = snapshot.model_dump(mode="json")
+    db.commit()
+
+    all_invoices: list[Invoice] = []
+    file_statuses = []
+
+    for upload_file in files:
+        filename = upload_file.filename or "uploaded_erp_file.csv"
+        file_bytes = upload_file.file.read()
+        invoices, errors = ERPImportService.parse_erp_file(file_bytes, filename, snapshot)
+        all_invoices.extend(invoices)
+        file_statuses.append({
+            "filename": filename,
+            "rows": len(invoices) + len(errors),
+            "parsed": len(invoices),
+            "errors_count": len(errors),
+            "errors": errors,
+        })
+
+    if all_invoices:
+        # Clear previous ERP / SAP invoices in this session
+        db.query(SessionInvoice).filter(
+            SessionInvoice.session_id == session.id,
+            SessionInvoice.source.in_([InvoiceSource.ERP, InvoiceSource.SAP]),
+        ).delete()
+        session.is_compared = False
+        session.comparison_results = None
+        _save_invoices(db, session.id, all_invoices, InvoiceSource.ERP)
+
+    return {
+        "session_id": session.id,
+        "source": "ERP",
+        "provider": profile.provider,
+        "profile_name": profile.name,
+        "count": len(all_invoices),
+        "files": file_statuses,
+        "invoices": all_invoices[:100],
+    }
+

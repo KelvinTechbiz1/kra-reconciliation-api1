@@ -21,11 +21,14 @@ async def lifespan(app: FastAPI):
     # Validate parsing profiles on startup (Fail fast) and seed defaults if empty
     from app.database.database import SessionLocal
     from app.services.parsing_profile_service import ParsingProfileService
+    from app.services.erp_profile_service import ERPProfileService
     with SessionLocal() as db:
         ParsingProfileService.seed_default_profiles(db)
         ParsingProfileService.get_profiles(db)
+        ERPProfileService.seed_builtin_profiles(db)
         
     yield
+
 
 
 app = FastAPI(

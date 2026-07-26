@@ -13,6 +13,7 @@ from app.models.settings import (
     VATMapping,
     VatModule,
 )
+from app.models.import_profile import ImportProfile, ProfileScope, SourceFormat
 from app.models.company import Company
 from app.models.user import User
 
@@ -30,4 +31,8 @@ __all__ = [
     "BaseAmountPolicy",
     "UnmappedVatPolicy",
     "VatModule",
+    "ImportProfile",
+    "ProfileScope",
+    "SourceFormat",
 ]
+

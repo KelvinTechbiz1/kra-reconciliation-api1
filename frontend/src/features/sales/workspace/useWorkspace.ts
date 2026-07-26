@@ -6,6 +6,7 @@ import { Invoice, ReconciliationResult, ReconciliationSummary } from "../types";
 import {
   fetchInvoicesPreview,
   uploadInvoicesCSV,
+  uploadErpInvoices,
   compareInvoices,
   fetchInvoicesPage,
   fetchReconciliationResultsPage,
@@ -91,9 +92,6 @@ export function useWorkspace(type: "sales" | "purchases") {
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "An unknown error occurred loading SAP data.";
 
-      // A company without a configured SAP connection (or a user with no
-      // company) cannot reach SAP. Surface this and send the user to Settings
-      // instead of bouncing them to the login screen.
       const upper = errorMessage.toUpperCase();
       if (
         upper.includes("NO SAP CONNECTION CONFIGURED") ||
@@ -110,6 +108,38 @@ export function useWorkspace(type: "sales" | "purchases") {
       setUiState(prev => ({ ...prev, sap: { status: AsyncStatus.Error, error: errorMessage } }));
     }
   };
+
+  const handleLoadErpFile = async (files: File[], profileId?: number | null) => {
+    if (files.length === 0) return;
+
+    setUiState(prev => ({
+      ...prev,
+      sap: { status: AsyncStatus.Loading },
+      kra: { status: AsyncStatus.Idle },
+      comparison: { status: AsyncStatus.Idle }
+    }));
+    setGlobalError(null);
+    setSummary(null);
+    sapPagination.reset();
+    kraPagination.reset();
+    resultsPagination.reset();
+    setFileStatuses([]);
+
+    try {
+      const data = await uploadErpInvoices(type, files, profileId, sessionId);
+      setSessionId(data.session_id);
+
+      const totalPages = Math.ceil(data.count / 100);
+      sapPagination.reset(data.invoices, data.count, totalPages);
+
+      setUiState(prev => ({ ...prev, sap: { status: AsyncStatus.Loaded } }));
+      notify(`Loaded ${data.count} ERP invoices using profile "${data.profile_name || "Default"}"`, "success");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "An error occurred uploading ERP file.";
+      setUiState(prev => ({ ...prev, sap: { status: AsyncStatus.Error, error: errorMessage } }));
+    }
+  };
+
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -220,9 +250,11 @@ export function useWorkspace(type: "sales" | "purchases") {
     globalError,
     setGlobalError,
     handleLoadSap,
+    handleLoadErpFile,
     handleFileUpload,
     handleCompare,
     resetState,
+
     sapPagination,
     kraPagination,
     resultsPagination,

@@ -27,6 +27,13 @@ class ReconciliationSession(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     last_accessed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
+    import_profile_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("import_profiles.id", ondelete="SET NULL"), nullable=True)
+    import_profile_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    import_profile_version_used: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    source_format: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    import_profile_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True, comment="Immutable copy of ImportProfileSnapshot used for parsing")
+
     invoices: Mapped[list["SessionInvoice"]] = relationship(
         "SessionInvoice", back_populates="session", cascade="all, delete-orphan"
     )
@@ -43,6 +50,7 @@ class SessionInvoice(Base):
     session_id: Mapped[str] = mapped_column(String(36), ForeignKey("reconciliation_sessions.id", ondelete="CASCADE"), nullable=False)
     row_number: Mapped[int] = mapped_column(Integer, nullable=False)
     source: Mapped[InvoiceSource] = mapped_column(Enum(InvoiceSource, native_enum=False), nullable=False)
+    provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
     pin: Mapped[str] = mapped_column(String(100), nullable=False)
     partner_name: Mapped[str] = mapped_column(String(255), nullable=False)
     invoice_number: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -52,6 +60,7 @@ class SessionInvoice(Base):
     base_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
 
     session: Mapped["ReconciliationSession"] = relationship("ReconciliationSession", back_populates="invoices")
+
 
     __table_args__ = (
         UniqueConstraint("session_id", "source", "row_number", name="uq_session_invoice_row"),

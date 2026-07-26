@@ -11,6 +11,7 @@ import { KRAVATMappingEditor } from "@/features/settings/KRAVATMappingEditor";
 import { KRAParsingProfilesCard } from "@/features/settings/KRAParsingProfilesCard";
 import { CompanyProfileCard } from "@/features/settings/CompanyProfileCard";
 import { UserManagementCard } from "@/features/settings/UserManagementCard";
+import { ERPImportProfilesCard } from "@/features/settings/ERPImportProfilesCard";
 import {
   Server,
   Sliders,
@@ -22,6 +23,7 @@ import {
   Building2,
   Users,
   FileSpreadsheet,
+  FileCode,
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
@@ -32,8 +34,10 @@ type ActiveTab =
   | "sap-connection"
   | "sap-vat-mappings"
   | "recon-rules"
+  | "erp-import-profiles"
   | "kra-section-profiles"
   | "kra-vat-mappings";
+
 
 interface NavItem {
   id: ActiveTab;
@@ -222,10 +226,12 @@ export default function SettingsPage() {
       title: "Reconciliation",
       items: [
         { id: "recon-rules", label: "Rules & Tolerances", icon: <Sliders className="w-4 h-4" /> },
+        { id: "erp-import-profiles", label: "ERP Import Profiles", icon: <FileCode className="w-4 h-4" /> },
         { id: "kra-section-profiles", label: "KRA Section Profiles", icon: <FileSpreadsheet className="w-4 h-4" /> },
         { id: "kra-vat-mappings", label: "KRA Section VAT Mappings", icon: <Tag className="w-4 h-4" /> },
       ],
     },
+
   ];
 
   const filteredSections = sections
@@ -358,6 +364,11 @@ export default function SettingsPage() {
               onSaved={handleSettingsSaved}
             />
           )}
+
+          {activeTab === "erp-import-profiles" && (
+            <ERPImportProfilesCard selectedCompanyId={selectedCompanyId} />
+          )}
+
 
           {activeTab === "sap-vat-mappings" && (
             <VATMappingEditor

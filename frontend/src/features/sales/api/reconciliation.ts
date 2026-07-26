@@ -107,3 +107,31 @@ export async function fetchReconciliationResultsPage(
   }
   return res.json();
 }
+
+export async function uploadErpInvoices(
+  type: "sales" | "purchases",
+  files: File[],
+  profileId?: number | null,
+  sessionId?: string | null
+): Promise<InvoiceFetchResponse> {
+  const formData = new FormData();
+  files.forEach(file => formData.append("files", file));
+
+  let url = `/${type}/upload-erp`;
+  const params: string[] = [];
+  if (profileId) params.push(`profile_id=${profileId}`);
+  if (sessionId) params.push(`session_id=${sessionId}`);
+  if (params.length > 0) url += `?${params.join("&")}`;
+
+  const res = await fetchWithAuth(url, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.detail || "Failed to upload ERP file");
+  }
+  return res.json();
+}
+

@@ -40,3 +40,21 @@ def upload_sales_csv(
     Upload multiple KRA CSV files containing sales invoices. Normalizes and appends records to the active session.
     """
     return upload_kra_csvs(db, current_user, ReconciliationType.SALES, files, session_id)
+
+
+@router.post("/upload-erp")
+def upload_sales_erp(
+    files: list[UploadFile],
+    profile_id: int | None = Query(None, description="Import profile ID. If omitted, active company default profile is resolved."),
+    session_id: str | None = Query(None, description="Optional existing active session ID."),
+    current_user: User = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Upload Sales ERP file (CSV or XLSX). Normalizes invoices using active ImportProfile snapshot.
+    """
+    from app.api.v1._session_helpers import upload_erp_invoices
+    return upload_erp_invoices(
+        db, current_user, ReconciliationType.SALES, files, profile_id=profile_id, session_id=session_id
+    )
+
