@@ -108,12 +108,12 @@ export function ReconciliationResultsView({
             </div>
             <h3 className="text-base font-semibold text-slate-700">
               {emptyReason === "SAP"
-                ? "No SAP invoices to compare"
+                ? "No ERP / SAP invoices to compare"
                 : "No KRA invoices to compare"}
             </h3>
             <p className="text-sm max-w-md">
               {emptyReason === "SAP"
-                ? "No SAP invoices were loaded for the selected date range. Load SAP data first, then upload the matching KRA CSV before comparing."
+                ? "No ERP or SAP invoices were loaded for this session. Load ERP or SAP data first, then upload the matching KRA CSV before comparing."
                 : "No KRA CSV has been uploaded for this session. Upload the KRA CSV file, then run the comparison again."}
             </p>
             <button

@@ -145,7 +145,7 @@ export function useWorkspace(type: "sales" | "purchases") {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     if (!sessionId) {
-      setGlobalError("Please load SAP data first to create a session.");
+      setGlobalError("Please load ERP or SAP data first to create a session.");
       return;
     }
 
@@ -192,7 +192,7 @@ export function useWorkspace(type: "sales" | "purchases") {
       const errorMessage = err instanceof Error ? err.message : "An unknown error occurred during comparison.";
 
       const upper = errorMessage.toUpperCase();
-      if (upper.includes("SAP INVOICE LOAD IS REQUIRED")) {
+      if (upper.includes("INVOICE LOAD IS REQUIRED")) {
         setUiState(prev => ({ ...prev, comparison: { status: AsyncStatus.Empty, emptyReason: "SAP" } }));
         return true;
       }

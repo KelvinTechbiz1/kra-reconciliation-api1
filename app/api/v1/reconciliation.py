@@ -46,7 +46,7 @@ def compare_session_invoices(
     # 3. Retrieve session invoices and build Invoice domain lists
     invoices = session.invoices
     
-    sap_invoices = [
+    primary_invoices = [
         Invoice(
             pin=i.pin,
             partner_name=i.partner_name,
@@ -57,7 +57,7 @@ def compare_session_invoices(
             base_amount=i.base_amount,
             source=InvoiceSource(i.source)
         )
-        for i in invoices if i.source == InvoiceSource.SAP
+        for i in invoices if i.source in [InvoiceSource.SAP, InvoiceSource.ERP]
     ]
     
     kra_invoices = [
@@ -75,10 +75,10 @@ def compare_session_invoices(
     ]
 
     # Validate that both sides have data before comparing
-    if not sap_invoices:
+    if not primary_invoices:
          raise HTTPException(
              status_code=status.HTTP_400_BAD_REQUEST,
-             detail="SAP invoice load is required before starting reconciliation comparison."
+             detail="ERP or SAP invoice load is required before starting reconciliation comparison."
          )
 
     if not kra_invoices:
@@ -93,7 +93,7 @@ def compare_session_invoices(
         target_company_id = session.company_id or current_user.company_id
         company_setting = SettingsService.get_or_create_company_settings(db, target_company_id)
         summary, results = reconciliation_service.reconcile_invoices(
-            sap_invoices, kra_invoices, amount_tolerance=company_setting.amount_tolerance
+            primary_invoices, kra_invoices, amount_tolerance=company_setting.amount_tolerance
         )
         
         # Clear any stale results for this session (if run again somehow)

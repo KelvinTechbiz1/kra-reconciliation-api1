@@ -19,14 +19,14 @@ class ParsingHintsSchema(BaseModel):
 
 
 class CanonicalColumnMappingSchema(BaseModel):
-    pin: List[str] = Field(default_factory=lambda: ["Customer PIN", "Supplier PIN", "PIN", "Tax Number", "KRA PIN"])
-    partner_name: List[str] = Field(default_factory=lambda: ["Customer Name", "Supplier Name", "Client Name", "Vendor Name", "Name"])
-    invoice_number: List[str] = Field(default_factory=lambda: ["Invoice Number", "Invoice No", "Invoice #", "DocNum", "Receipt No"])
-    invoice_date: List[str] = Field(default_factory=lambda: ["Invoice Date", "Doc Date", "Date"])
-    cu_number: List[str] = Field(default_factory=lambda: ["CU Number", "ETR Number", "Control Unit No", "CU Serial"])
-    vat_group: List[str] = Field(default_factory=lambda: ["VAT Group", "Tax Rate", "VAT Code", "Tax Type"])
-    base_amount: List[str] = Field(default_factory=lambda: ["Base Amount", "Taxable Amount", "SubTotal", "Amount", "Total Amount"])
-    tax_amount: List[str] = Field(default_factory=lambda: ["Tax Amount", "VAT Amount", "Tax"])
+    pin: Union[str, List[str]] = Field(default_factory=lambda: ["Customer PIN", "Supplier PIN", "PIN", "Tax Number", "KRA PIN"])
+    partner_name: Union[str, List[str]] = Field(default_factory=lambda: ["Customer Name", "Supplier Name", "Client Name", "Vendor Name", "Name"])
+    invoice_number: Union[str, List[str]] = Field(default_factory=lambda: ["Invoice Number", "Invoice No", "Invoice #", "DocNum", "Receipt No"])
+    invoice_date: Union[str, List[str]] = Field(default_factory=lambda: ["Invoice Date", "Doc Date", "Date"])
+    cu_number: Union[str, List[str]] = Field(default_factory=lambda: ["CU Number", "ETR Number", "Control Unit No", "CU Serial"])
+    vat_group: Union[str, List[str]] = Field(default_factory=lambda: ["VAT Group", "Tax Rate", "VAT Code", "Tax Type"])
+    base_amount: Union[str, List[str]] = Field(default_factory=lambda: ["Base Amount", "Taxable Amount", "SubTotal", "Amount", "Total Amount"])
+    tax_amount: Union[str, List[str]] = Field(default_factory=lambda: ["Tax Amount", "VAT Amount", "Tax"])
 
 
 class SalesValidationRulesSchema(BaseModel):

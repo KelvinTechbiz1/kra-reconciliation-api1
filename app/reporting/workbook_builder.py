@@ -26,8 +26,12 @@ def build_all(
     """Build all workbook artifacts: summary + exception/matches workbooks."""
     artifacts: list[WorkbookArtifact] = []
 
+    # Determine primary source label (ERP vs SAP)
+    is_erp = bool(session.provider and session.provider.upper() != "SAP") or session.import_profile_id is not None
+    primary_label = "ERP" if is_erp else "SAP"
+
     # 1. Summary workbook
-    artifacts.append(_build_summary_workbook(rows, summary, context, session))
+    artifacts.append(_build_summary_workbook(rows, summary, context, session, primary_label))
 
     # 2. Detail workbooks
     for workbook_def in WORKBOOK_DEFINITIONS:
@@ -40,7 +44,7 @@ def build_all(
                 break
         
         if has_data:
-            artifacts.append(_build_detail_workbook(rows, workbook_def, context))
+            artifacts.append(_build_detail_workbook(rows, workbook_def, context, primary_label))
 
     return artifacts
 
@@ -50,6 +54,7 @@ def _build_summary_workbook(
     summary: ReconciliationSummary,
     context: ExportContext,
     session: ReconciliationSession,
+    primary_label: str = "SAP",
 ) -> WorkbookArtifact:
     wb = Workbook()
     ws = wb.active
@@ -81,7 +86,7 @@ def _build_summary_workbook(
     match_rate = summary.match_percentage if summary.total_reconciled_rows > 0 else 0.0
 
     counts = [
-        ("SAP Invoices", summary.total_sap),
+        (f"{primary_label} Invoices", summary.total_sap),
         ("KRA Invoices", summary.total_kra),
         ("Matched", summary.matches),
         ("Needs Review", needs_review),
@@ -104,7 +109,7 @@ def _build_summary_workbook(
 
         # Count actual statuses directly from rows to ensure consistency
         breakdown_counts = [
-            ("Missing in SAP", sum(1 for r in rows if r.status == ReconciliationStatus.MISSING_IN_SAP)),
+            (f"Missing in {primary_label}", sum(1 for r in rows if r.status == ReconciliationStatus.MISSING_IN_SAP)),
             ("Missing in KRA", sum(1 for r in rows if r.status == ReconciliationStatus.MISSING_IN_KRA)),
             ("Amount Mismatch", sum(1 for r in rows if r.status == ReconciliationStatus.AMOUNT_MISMATCH)),
             ("VAT Mismatch", sum(1 for r in rows if r.status == ReconciliationStatus.VAT_MISMATCH)),
@@ -138,6 +143,7 @@ def _build_detail_workbook(
     all_rows: list[ReconciliationExportRow],
     workbook_def: WorkbookDefinition,
     context: ExportContext,
+    primary_label: str = "SAP",
 ) -> WorkbookArtifact:
     wb = Workbook()
     
@@ -151,10 +157,14 @@ def _build_detail_workbook(
         if not rows:
             continue
 
-        ws = wb.create_sheet(title=sheet_def.title)
+        sheet_title = sheet_def.title
+        if sheet_title == "Missing in SAP":
+            sheet_title = f"Missing in {primary_label}"
+
+        ws = wb.create_sheet(title=sheet_title)
         
-        # Header row
-        headers = [col.header for col in sheet_def.columns]
+        # Header row - replace "SAP" with primary_label if needed
+        headers = [col.header.replace("SAP", primary_label) for col in sheet_def.columns]
         for col_idx, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col_idx, value=header)
             cell.font = HEADER_FONT

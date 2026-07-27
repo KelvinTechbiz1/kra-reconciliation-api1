@@ -25,10 +25,19 @@ def normalize_header(header_str: str) -> str:
     return re.sub(r"\s+", " ", str(header_str).strip().upper())
 
 
-def match_column_name(headers: List[str], target_aliases: List[str]) -> Optional[str]:
-    """Matches raw file headers against a target field's alias list (case-insensitive)."""
+def match_column_name(headers: List[str], target_aliases: Any) -> Optional[str]:
+    """Matches raw file headers against a target field's single mapped header or alias list (case-insensitive)."""
+    if not target_aliases:
+        return None
+    if isinstance(target_aliases, str):
+        aliases = [target_aliases]
+    elif isinstance(target_aliases, list):
+        aliases = target_aliases
+    else:
+        aliases = [str(target_aliases)]
+
     normalized_headers = {normalize_header(h): h for h in headers if h}
-    for alias in target_aliases:
+    for alias in aliases:
         norm_alias = normalize_header(alias)
         if norm_alias in normalized_headers:
             return normalized_headers[norm_alias]
@@ -259,7 +268,7 @@ class ERPImportService:
                 inv = Invoice(
                     pin=raw_pin or "N/A",
                     partner_name=raw_partner or "N/A",
-                    invoice_number=raw_inv_num or f"ROW-{excel_row_num}",
+                    invoice_number=raw_inv_num or "N/A",
                     invoice_date=parsed_date or date.today(),
                     cu_number=raw_cu_num or "",
                     vat_group=raw_vat_group or rules.default_vat_group,
