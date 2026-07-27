@@ -98,5 +98,6 @@ export interface MappingPreviewResponse {
   total_rows_detected: number;
   preview_samples: PreviewRowSample[];
   is_valid: boolean;
-  general_errors: List[string];
+  general_errors: string[];
 }
+

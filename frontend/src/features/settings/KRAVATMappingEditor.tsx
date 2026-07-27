@@ -195,7 +195,7 @@ export function KRAVATMappingEditor({ mappings: initialMappings, selectedCompany
                   Filename Prefix
                 </th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                  Canonical VAT Rate
+                  VAT Rate
                 </th>
                 <th className="w-16 px-4 py-2.5"></th>
               </tr>

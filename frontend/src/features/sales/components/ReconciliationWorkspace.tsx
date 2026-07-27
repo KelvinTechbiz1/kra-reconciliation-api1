@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { useWorkspace } from "../workspace/useWorkspace";
-import { SessionStatus } from "../workspace/types";
 import { WorkspaceView } from "./WorkspaceView";
 import { ReconciliationResultsView } from "./ReconciliationResultsView";
 import { AlertTriangle } from "lucide-react";
@@ -21,7 +20,7 @@ export function ReconciliationWorkspace({ type }: ReconciliationWorkspaceProps) 
     uiState, summary, globalError, handleLoadSap, handleLoadErpFile, handleFileUpload, 
     handleCompare: triggerCompare,
     sapPagination, kraPagination, resultsPagination,
-    workflowStep, sessionStatus, readyToCompare, sessionId
+    workflowStep, readyToCompare, sessionId
   } = useWorkspace(type);
 
   // We wrap handleCompare to also handle navigation to the Results view
@@ -29,19 +28,6 @@ export function ReconciliationWorkspace({ type }: ReconciliationWorkspaceProps) 
     const ok = await triggerCompare();
     if (ok) {
       setNavState("results");
-    }
-  };
-
-  const getSessionStatusLabel = (status: SessionStatus) => {
-    switch (status) {
-      case SessionStatus.WaitingForSAP: return "Waiting for SAP";
-      case SessionStatus.LoadingSAP: return "Loading SAP invoices";
-      case SessionStatus.WaitingForCSV: return "Ready for CSV upload";
-      case SessionStatus.ReadyToCompare: return "Ready to compare";
-      case SessionStatus.Comparing: return "Comparing";
-      case SessionStatus.Completed: return "Completed";
-      case SessionStatus.Error: return "Error occurred";
-      default: return "";
     }
   };
 
@@ -56,24 +42,6 @@ export function ReconciliationWorkspace({ type }: ReconciliationWorkspaceProps) 
           <p suppressHydrationWarning className="text-xs text-slate-400 mt-0.5">
             SAP ERP ↔ KRA Portal · {new Date().toLocaleDateString("en-KE", { month: "long", year: "numeric" })}
           </p>
-        </div>
-
-        {/* Session status pill */}
-        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border ${
-          sessionStatus === SessionStatus.Completed
-            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-            : sessionStatus === SessionStatus.Error
-              ? "bg-red-50 text-red-700 border-red-200"
-              : "bg-slate-100 text-[#0e1734] border-slate-300"
-        }`}>
-          <span className={`w-2 h-2 rounded-full shrink-0 ${
-            sessionStatus === SessionStatus.Completed
-              ? "bg-emerald-500"
-              : sessionStatus === SessionStatus.Error
-                ? "bg-red-500"
-                : "bg-[#0e1734] animate-pulse"
-          }`} />
-          {getSessionStatusLabel(sessionStatus)}
         </div>
       </div>
 

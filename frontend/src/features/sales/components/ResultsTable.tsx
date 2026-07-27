@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useMemo } from "react";
-import { Check, X, AlertTriangle, ArrowUpDown, ChevronDown, ChevronRight } from "lucide-react";
+import { Check, X, AlertTriangle, ArrowUpDown, ChevronDown, ChevronRight, Database, FileSpreadsheet, CheckCircle2 } from "lucide-react";
 import { Invoice, ReconciliationResult, ReconciliationSummary } from "../types";
 
 const formatVatGroup = (vat?: string) => {
@@ -232,17 +232,67 @@ export function ResultsTable({
 
   return (
     <div className="flex flex-col">
-      {/* Summary Header */}
+      {/* Summary KPI Cards - Logo Color Palette */}
       {summary && (
-        <div className="mb-4 mt-2 text-sm font-medium text-slate-700 flex justify-between items-center px-2">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-900">{summary.total_sap}</span> <span className="text-slate-500">SAP records</span>
-            <span className="text-slate-300">•</span>
-            <span className="font-semibold text-slate-900">{summary.total_kra}</span> <span className="text-slate-500">KRA records</span>
-            <span className="text-slate-300">•</span>
-            <span className="font-semibold text-green-600 cursor-pointer hover:underline" onClick={() => setFilter("Matches")}>{summary.matches}</span> <span className="text-slate-500">matches</span>
-            <span className="text-slate-300">•</span>
-            <span className="font-semibold text-amber-600 cursor-pointer hover:underline" onClick={() => setFilter("Issues")}>{issuesCount}</span> <span className="text-slate-500">issues</span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          {/* SAP Records Card - Deep Navy Logo Color (#0e1734) */}
+          <div 
+            onClick={() => setFilter("All")}
+            className="rounded-xl p-4 transition-all cursor-pointer flex items-center justify-between group shadow-sm bg-gradient-to-br from-[#0e1734] to-[#16295c] text-white border border-[#23356f] hover:scale-[1.01] hover:shadow-md"
+          >
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-300">SAP Records</p>
+              <p className="text-2xl font-extrabold mt-1 font-mono text-white">{summary.total_sap}</p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-amber-400 group-hover:bg-[#f88602] group-hover:text-white transition-all shadow-2xs">
+              <Database className="w-5 h-5" />
+            </div>
+          </div>
+
+          {/* KRA Records Card - Secondary Slate Navy Logo Tone */}
+          <div 
+            onClick={() => setFilter("All")}
+            className="rounded-xl p-4 transition-all cursor-pointer flex items-center justify-between group shadow-sm bg-gradient-to-br from-[#1a274e] to-[#0f1836] text-white border border-[#283b75] hover:scale-[1.01] hover:shadow-md"
+          >
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-300">KRA Records</p>
+              <p className="text-2xl font-extrabold mt-1 font-mono text-white">{summary.total_kra}</p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-sky-300 group-hover:bg-sky-500 group-hover:text-white transition-all shadow-2xs">
+              <FileSpreadsheet className="w-5 h-5" />
+            </div>
+          </div>
+
+          {/* Matches Card - Brand Vibrant Orange (#f88602) */}
+          <div 
+            onClick={() => setFilter("Matches")}
+            className={`rounded-xl p-4 transition-all cursor-pointer flex items-center justify-between group shadow-sm bg-gradient-to-br from-[#f88602] to-[#d97200] text-white border border-[#ff9d26] ${
+              activeFilter === "Matches" ? "ring-2 ring-white shadow-md scale-[1.02]" : "hover:scale-[1.01] hover:shadow-md opacity-95 hover:opacity-100"
+            }`}
+          >
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-orange-100">Matches</p>
+              <p className="text-2xl font-extrabold mt-1 font-mono text-white">{summary.matches}</p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white group-hover:bg-white group-hover:text-[#f88602] transition-all shadow-2xs">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+          </div>
+
+          {/* Issues Card - Dark Red / Crimson Brand Contrast */}
+          <div 
+            onClick={() => setFilter("Issues")}
+            className={`rounded-xl p-4 transition-all cursor-pointer flex items-center justify-between group shadow-sm bg-gradient-to-br from-[#85182a] to-[#4d0c17] text-white border border-[#a8253a] ${
+              activeFilter === "Issues" ? "ring-2 ring-white shadow-md scale-[1.02]" : "hover:scale-[1.01] hover:shadow-md opacity-95 hover:opacity-100"
+            }`}
+          >
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-rose-200">Issues</p>
+              <p className="text-2xl font-extrabold mt-1 font-mono text-white">{issuesCount}</p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-rose-100 group-hover:bg-white group-hover:text-[#85182a] transition-all shadow-2xs">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
           </div>
         </div>
       )}

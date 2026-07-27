@@ -196,53 +196,7 @@ export function WorkspaceView({
           </div>
 
           {erpSourceMode === "sap" ? (
-            <>
-              {/* Quick Period Presets */}
-              <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Quick Range</span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const now = new Date();
-                      const f = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
-                      const t = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
-                      setFromDate(f);
-                      setToDate(t);
-                    }}
-                    className="text-[10px] font-medium px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
-                  >
-                    This Month
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const now = new Date();
-                      const f = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split("T")[0];
-                      const t = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split("T")[0];
-                      setFromDate(f);
-                      setToDate(t);
-                    }}
-                    className="text-[10px] font-medium px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
-                  >
-                    Last Month
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const now = new Date();
-                      const f = new Date(now.getFullYear(), 0, 1).toISOString().split("T")[0];
-                      const t = now.toISOString().split("T")[0];
-                      setFromDate(f);
-                      setToDate(t);
-                    }}
-                    className="text-[10px] font-medium px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
-                  >
-                    YTD
-                  </button>
-                </div>
-              </div>
-
+            <div className="pt-1 border-t border-slate-100">
               {/* Date Range Inputs Row */}
               <div className="flex items-end gap-3">
                 <div className="flex flex-col gap-1 flex-1">
@@ -288,7 +242,7 @@ export function WorkspaceView({
                   {sapLoaded ? "Reload" : "Load SAP"}
                 </button>
               </div>
-            </>
+            </div>
           ) : (
             <div className="space-y-3 pt-1 border-t border-slate-100">
               <div>

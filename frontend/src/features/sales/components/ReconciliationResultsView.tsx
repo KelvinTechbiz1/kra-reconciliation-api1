@@ -125,7 +125,7 @@ export function ReconciliationResultsView({
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-1">
+        <div className="flex-1 min-h-0 flex flex-col">
           <ResultsTable 
             results={resultsPagination.items} 
             summary={summary} 

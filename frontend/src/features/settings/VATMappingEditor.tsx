@@ -116,7 +116,7 @@ export function VATMappingEditor({ connectionId, mappings: initialMappings, sele
         throw new Error(errData.detail || "Failed to update tax code mappings.");
       }
 
-      notify("Canonical VAT tax code mappings updated successfully!", "success");
+      notify("VAT tax code mappings updated successfully!", "success");
       onSaved();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);

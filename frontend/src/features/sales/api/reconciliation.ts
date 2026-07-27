@@ -9,7 +9,10 @@ export interface InvoiceFetchResponse {
   from_date: string;
   to_date: string;
   invoices: Invoice[];
+  profile_name?: string | null;
+  provider?: string | null;
 }
+
 
 export interface CSVValidationErrorDetail {
   row: number;
