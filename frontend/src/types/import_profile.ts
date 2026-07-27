@@ -21,6 +21,7 @@ export interface CanonicalColumnMapping {
   cu_number: string[];
   vat_group: string[];
   base_amount: string[];
+  tax_amount: string[];
 }
 
 export interface SalesValidationRules {
@@ -31,6 +32,7 @@ export interface SalesValidationRules {
   row_skip_policy: "SKIP_EMPTY_AND_TOTALS" | "FAIL_ON_EMPTY";
   default_vat_group: string;
   require_valid_pin_format: boolean;
+  vat_derivation_enabled: boolean;
 }
 
 export interface PurchasesValidationRules {
@@ -41,6 +43,7 @@ export interface PurchasesValidationRules {
   row_skip_policy: "SKIP_EMPTY_AND_TOTALS" | "FAIL_ON_EMPTY";
   default_vat_group: string;
   purchase_cu_fallback_field?: string | null;
+  vat_derivation_enabled: boolean;
 }
 
 export type TypedValidationRules = SalesValidationRules | PurchasesValidationRules;
@@ -101,3 +104,11 @@ export interface MappingPreviewResponse {
   general_errors: string[];
 }
 
+export interface HeaderDetectionResponse {
+  filename: string;
+  detected_headers: string[];
+  header_row: number;
+  data_start_row: number;
+  scanned_rows: number;
+  confidence: "high" | "medium" | "low";
+}

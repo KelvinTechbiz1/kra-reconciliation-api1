@@ -14,14 +14,20 @@ import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
 
 type ToastVariant = "error" | "success" | "info";
 
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface Toast {
   id: number;
   message: string;
   variant: ToastVariant;
+  action?: ToastAction;
 }
 
 interface ToastContextValue {
-  notify: (message: string, variant?: ToastVariant) => void;
+  notify: (message: string, variant?: ToastVariant, action?: ToastAction) => void;
   dismiss: (id: number) => void;
 }
 
@@ -40,12 +46,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const notify = useCallback((message: string, variant: ToastVariant = "error") => {
+  const notify = useCallback((message: string, variant: ToastVariant = "error", action?: ToastAction) => {
     const id = nextId.current++;
-    setToasts((prev) => [...prev, { id, message, variant }]);
+    setToasts((prev) => [...prev, { id, message, variant, action }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 5000);
+    }, 7000);
   }, []);
 
   return (
@@ -80,6 +86,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
                   <div className="flex-1 text-xs font-medium leading-relaxed break-words">
                     {t.message}
+                    {t.action && (
+                      <button
+                        onClick={() => {
+                          t.action!.onClick();
+                          dismiss(t.id);
+                        }}
+                        className="ml-2 underline font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
+                      >
+                        {t.action.label}
+                      </button>
+                    )}
                   </div>
 
                   <button

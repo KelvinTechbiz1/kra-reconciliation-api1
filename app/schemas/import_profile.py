@@ -26,26 +26,29 @@ class CanonicalColumnMappingSchema(BaseModel):
     cu_number: List[str] = Field(default_factory=lambda: ["CU Number", "ETR Number", "Control Unit No", "CU Serial"])
     vat_group: List[str] = Field(default_factory=lambda: ["VAT Group", "Tax Rate", "VAT Code", "Tax Type"])
     base_amount: List[str] = Field(default_factory=lambda: ["Base Amount", "Taxable Amount", "SubTotal", "Amount", "Total Amount"])
+    tax_amount: List[str] = Field(default_factory=lambda: ["Tax Amount", "VAT Amount", "Tax"])
 
 
 class SalesValidationRulesSchema(BaseModel):
     module: Literal[ReconciliationType.SALES] = ReconciliationType.SALES
-    required_fields: List[str] = Field(default_factory=lambda: ["pin", "invoice_number", "base_amount"])
+    required_fields: List[str] = Field(default_factory=lambda: ["cu_number", "vat_group", "base_amount"])
     allowed_vat_codes: List[str] = Field(default_factory=lambda: ["16", "8", "0", "EXEMPT"])
     date_strictness: Literal["STRICT", "LENIENT"] = "LENIENT"
     row_skip_policy: Literal["SKIP_EMPTY_AND_TOTALS", "FAIL_ON_EMPTY"] = "SKIP_EMPTY_AND_TOTALS"
-    default_vat_group: str = "A16"
+    default_vat_group: str = "16"
     require_valid_pin_format: bool = True
+    vat_derivation_enabled: bool = False
 
 
 class PurchasesValidationRulesSchema(BaseModel):
     module: Literal[ReconciliationType.PURCHASES] = ReconciliationType.PURCHASES
-    required_fields: List[str] = Field(default_factory=lambda: ["pin", "invoice_number", "base_amount"])
+    required_fields: List[str] = Field(default_factory=lambda: ["cu_number", "vat_group", "base_amount"])
     allowed_vat_codes: List[str] = Field(default_factory=lambda: ["16", "8", "0", "EXEMPT"])
     date_strictness: Literal["STRICT", "LENIENT"] = "LENIENT"
     row_skip_policy: Literal["SKIP_EMPTY_AND_TOTALS", "FAIL_ON_EMPTY"] = "SKIP_EMPTY_AND_TOTALS"
-    default_vat_group: str = "A16"
+    default_vat_group: str = "16"
     purchase_cu_fallback_field: Optional[str] = None
+    vat_derivation_enabled: bool = False
 
 
 TypedValidationRules = Union[SalesValidationRulesSchema, PurchasesValidationRulesSchema]
@@ -132,3 +135,12 @@ class MappingPreviewResponse(BaseModel):
     preview_samples: List[PreviewRowSample]
     is_valid: bool
     general_errors: List[str] = Field(default_factory=list)
+
+
+class HeaderDetectionResponse(BaseModel):
+    filename: str
+    detected_headers: List[str]
+    header_row: int
+    data_start_row: int
+    scanned_rows: int
+    confidence: str  # "high" | "medium" | "low"

@@ -118,36 +118,39 @@ DEFAULT_BUILTIN_PROFILES = [
         "is_builtin": True,
         "is_default": False,
     },
-    {
-        "name": "Bill Details - Purchases",
-        "module": ReconciliationType.PURCHASES,
-        "provider": "CUSTOM",
-        "description": "XLSX bill details export with Bill Date, Bill#, Vendor Name, Amount Without Tax, Tax Amount, Bill Amount columns.",
-        "source_format": SourceFormat.XLSX,
-        "parsing_hints": ParsingHintsSchema(
-            has_header=True,
-            header_row=2,
-            data_start_row=3,
-            sheet_name="Bill Details",
-            date_format="DD Mon YYYY",
-        ).model_dump(),
-        "column_mapping": CanonicalColumnMappingSchema(
-            pin=[],
-            partner_name=["Vendor Name"],
-            invoice_number=["Bill#", "Bill No", "Bill Number"],
-            invoice_date=["Bill Date"],
-            cu_number=[],
-            vat_group=[],
-            base_amount=["Amount Without Tax", "Taxable Amount", "Base Amount"],
-        ).model_dump(),
-        "validation_rules": PurchasesValidationRulesSchema(
-            required_fields=["invoice_number", "base_amount"],
-            row_skip_policy="SKIP_EMPTY_AND_TOTALS",
-        ).model_dump(),
-        "is_builtin": True,
-        "is_default": False,
-    },
 ]
+
+
+# Profile configuration for Bill Details XLSX format (user-created, not builtin)
+BILL_DETAILS_PROFILE = {
+    "name": "Bill Details - Purchases",
+    "module": ReconciliationType.PURCHASES,
+    "provider": "CUSTOM",
+    "description": "XLSX bill details export with Bill Date, Bill#, Vendor Name, Amount Without Tax, Tax Amount, Bill Amount columns.",
+    "source_format": SourceFormat.XLSX,
+    "parsing_hints": ParsingHintsSchema(
+        has_header=True,
+        header_row=2,
+        data_start_row=3,
+        sheet_name="Bill Details",
+        date_format="DD Mon YYYY",
+    ).model_dump(),
+    "column_mapping": CanonicalColumnMappingSchema(
+        pin=[],
+        partner_name=["Vendor Name"],
+        invoice_number=["Bill#", "Bill No", "Bill Number"],
+        invoice_date=["Bill Date"],
+        cu_number=[],
+        vat_group=[],
+        base_amount=["Amount Without Tax", "Taxable Amount", "Base Amount"],
+        tax_amount=["Tax Amount", "VAT Amount"],
+    ).model_dump(),
+    "validation_rules": PurchasesValidationRulesSchema(
+        required_fields=["base_amount"],
+        row_skip_policy="SKIP_EMPTY_AND_TOTALS",
+        vat_derivation_enabled=True,
+    ).model_dump(),
+}
 
 
 class ERPProfileService:
@@ -160,14 +163,27 @@ class ERPProfileService:
         except Exception:
             pass
 
-        for item in DEFAULT_BUILTIN_PROFILES:
+        # Track which modules already have a default profile
+        modules_with_default = set()
+        existing_defaults = db.query(ImportProfile.module).filter(
+            ImportProfile.is_default == True,
+            ImportProfile.is_active == True,
+        ).all()
+        for (mod,) in existing_defaults:
+            modules_with_default.add(mod)
 
+        for item in DEFAULT_BUILTIN_PROFILES:
             existing = db.query(ImportProfile).filter(
                 ImportProfile.scope == ProfileScope.BUILTIN,
                 ImportProfile.module == item["module"],
                 ImportProfile.name == item["name"],
             ).first()
             if not existing:
+                # Only set default if no default exists yet for this module
+                should_default = item["is_default"] and item["module"] not in modules_with_default
+                if should_default:
+                    modules_with_default.add(item["module"])
+
                 profile = ImportProfile(
                     company_id=None,
                     scope=ProfileScope.BUILTIN,
@@ -180,7 +196,7 @@ class ERPProfileService:
                     column_mapping=item["column_mapping"],
                     validation_rules=item["validation_rules"],
                     is_builtin=True,
-                    is_default=item["is_default"],
+                    is_default=should_default,
                     is_active=True,
                     version=1,
                 )
@@ -240,7 +256,6 @@ class ERPProfileService:
 
         if payload.is_default:
             db.query(ImportProfile).filter(
-                ImportProfile.company_id == company_id,
                 ImportProfile.module == payload.module,
             ).update({"is_default": False}, synchronize_session=False)
 
@@ -278,9 +293,6 @@ class ERPProfileService:
         if not profile:
             raise KeyError(f"Import profile ID {profile_id} not found or is inactive.")
 
-        if profile.is_builtin:
-            raise PermissionError("System built-in presets cannot be modified or deleted. Use the clone endpoint to create an editable company profile.")
-
         if company_id is not None and profile.company_id is not None and profile.company_id != company_id:
             raise KeyError(f"Import profile ID {profile_id} not found.")
 
@@ -313,7 +325,6 @@ class ERPProfileService:
 
         if payload.is_default is True and target_company_id is not None:
             db.query(ImportProfile).filter(
-                ImportProfile.company_id == target_company_id,
                 ImportProfile.module == profile.module,
                 ImportProfile.id != profile_id,
             ).update({"is_default": False}, synchronize_session=False)
@@ -346,11 +357,11 @@ class ERPProfileService:
             if not target_company_id:
                 raise ValueError("Cannot set built-in profile as default without a valid company context.")
 
-            # Clear previous defaults for this company & module
+            # Clear ALL previous defaults for this module (company + built-in)
             db.query(ImportProfile).filter(
-                ImportProfile.company_id == target_company_id,
                 ImportProfile.module == profile.module,
                 ImportProfile.id != profile_id,
+                ImportProfile.is_active == True,
             ).update({"is_default": False}, synchronize_session=False)
 
             profile.is_default = True
@@ -358,6 +369,17 @@ class ERPProfileService:
         db.commit()
         db.refresh(profile)
         return profile
+
+    @classmethod
+    def delete_profile(cls, db: Session, profile_id: int, company_id: Optional[int]) -> None:
+        """Hard-deletes an import profile."""
+        profile = db.query(ImportProfile).filter(ImportProfile.id == profile_id).first()
+        if not profile:
+            raise KeyError(f"Import profile ID {profile_id} not found.")
+        if company_id is not None and profile.company_id is not None and profile.company_id != company_id:
+            raise KeyError(f"Import profile ID {profile_id} not found.")
+        db.delete(profile)
+        db.commit()
 
     @classmethod
     def clone_profile(cls, db: Session, source_profile_id: int, company_id: int, new_name: Optional[str] = None) -> ImportProfile:

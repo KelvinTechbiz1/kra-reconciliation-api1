@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.import_profile import (
+    HeaderDetectionResponse,
     ImportProfileCreate,
     ImportProfileResponse,
     ImportProfileUpdate,
@@ -95,10 +96,10 @@ def delete_import_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Archive a custom import profile."""
+    """Permanently delete a custom import profile."""
     company_id = _get_company_id(current_user, db)
     try:
-        ERPProfileService.update_profile(db, id, company_id, ImportProfileUpdate(is_active=False))
+        ERPProfileService.delete_profile(db, id, company_id)
     except KeyError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e).strip("'"))
     except (ValueError, PermissionError) as e:
@@ -157,4 +158,15 @@ async def preview_import_profile_mapping(
     filename = file.filename or "sample_file.csv"
 
     return ERPImportService.preview_mapping(file_bytes, filename, snapshot)
+
+
+@router.post("/detect-headers", response_model=HeaderDetectionResponse)
+async def detect_headers_from_file(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Auto-detect which row contains headers in an uploaded sample file."""
+    file_bytes = await file.read()
+    filename = file.filename or "sample_file.csv"
+    return ERPImportService.detect_headers(file_bytes, filename)
 

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import {
   ImportProfile,
   ImportProfileCreate,
+  HeaderDetectionResponse,
   MappingPreviewResponse,
   ReconciliationType,
   SourceFormat,
@@ -30,12 +31,65 @@ import {
   Sparkles,
   AlertCircle,
   Tag,
-  Check,
+  ChevronDown,
+  ChevronRight,
+  Star,
 } from "lucide-react";
 
 interface ERPImportProfilesCardProps {
   selectedCompanyId?: number | null;
 }
+
+/* ─── Confirm Modal ─────────────────────────────────────────────────────── */
+
+interface ConfirmModalProps {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  variant?: "danger" | "warning" | "default";
+  onConfirm: () => void;
+  onClose: () => void;
+  loading?: boolean;
+}
+
+function ConfirmModal({ title, message, confirmLabel, variant = "default", onConfirm, onClose, loading }: ConfirmModalProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  if (!mounted) return null;
+
+  const btnColors = {
+    danger: "bg-rose-600 hover:bg-rose-700 text-white",
+    warning: "bg-amber-600 hover:bg-amber-700 text-white",
+    default: "bg-[#0e1734] hover:bg-[#16224c] text-white",
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-150">
+        <div className="px-6 py-5">
+          <h3 className="font-bold text-slate-900 text-sm">{title}</h3>
+          <p className="text-xs text-slate-500 mt-1.5">{message}</p>
+        </div>
+        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:text-slate-900 text-xs font-semibold transition-colors cursor-pointer">
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 ${btnColors[variant]}`}
+          >
+            {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/* ─── Add / Edit Import Profile Modal ───────────────────────────────────── */
 
 interface AddEditModalProps {
   profileToEdit?: ImportProfile | null;
@@ -46,35 +100,39 @@ interface AddEditModalProps {
 function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditModalProps) {
   const [mounted, setMounted] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<"mapping" | "hints" | "preview">("mapping");
 
-  // Form State
+  // Form State — Basics
   const [formName, setFormName] = useState(profileToEdit?.name || "");
   const [formModule, setFormModule] = useState<ReconciliationType>(profileToEdit?.module || "sales");
-  const [formProvider, setFormProvider] = useState(profileToEdit?.provider || "ZOHO");
+  const [formProvider, setFormProvider] = useState(profileToEdit?.provider || "CUSTOM");
   const [formDescription, setFormDescription] = useState(profileToEdit?.description || "");
   const [formFormat, setFormFormat] = useState<SourceFormat>(profileToEdit?.source_format || "csv");
   const [isDefault, setIsDefault] = useState(profileToEdit?.is_default || false);
 
-  // Column Mappings (Comma Separated Strings)
-  const [pinAlias, setPinAlias] = useState(profileToEdit?.column_mapping.pin.join(", ") || "Customer PIN, Tax Number, PIN");
-  const [partnerAlias, setPartnerAlias] = useState(profileToEdit?.column_mapping.partner_name.join(", ") || "Customer Name, Client Name, Vendor");
-  const [invNumAlias, setInvNumAlias] = useState(profileToEdit?.column_mapping.invoice_number.join(", ") || "Invoice Number, Invoice No, DocNum");
-  const [invDateAlias, setInvDateAlias] = useState(profileToEdit?.column_mapping.invoice_date.join(", ") || "Invoice Date, Date");
-  const [cuNumAlias, setCuNumAlias] = useState(profileToEdit?.column_mapping.cu_number.join(", ") || "CU Number, ETR Number, Control Unit No");
-  const [vatGroupAlias, setVatGroupAlias] = useState(profileToEdit?.column_mapping.vat_group.join(", ") || "Tax Rate, VAT Code, VAT Group");
-  const [baseAmtAlias, setBaseAmtAlias] = useState(profileToEdit?.column_mapping.base_amount.join(", ") || "SubTotal, Taxable Amount, Base Amount");
+  // Column Mappings
+  const [pinAlias, setPinAlias] = useState(profileToEdit?.column_mapping.pin.join(", ") || "");
+  const [partnerAlias, setPartnerAlias] = useState(profileToEdit?.column_mapping.partner_name.join(", ") || "");
+  const [invNumAlias, setInvNumAlias] = useState(profileToEdit?.column_mapping.invoice_number.join(", ") || "");
+  const [invDateAlias, setInvDateAlias] = useState(profileToEdit?.column_mapping.invoice_date.join(", ") || "");
+  const [cuNumAlias, setCuNumAlias] = useState(profileToEdit?.column_mapping.cu_number.join(", ") || "");
+  const [vatGroupAlias, setVatGroupAlias] = useState(profileToEdit?.column_mapping.vat_group.join(", ") || "");
+  const [baseAmtAlias, setBaseAmtAlias] = useState(profileToEdit?.column_mapping.base_amount.join(", ") || "");
+  const [taxAmtAlias, setTaxAmtAlias] = useState(profileToEdit?.column_mapping.tax_amount?.join(", ") || "");
+  const [vatDerivationEnabled, setVatDerivationEnabled] = useState(profileToEdit?.validation_rules.vat_derivation_enabled || false);
 
-  // Active Focused Alias Input for Auto-Assigning Detected Headers
-  const [activeAliasField, setActiveAliasField] = useState<"pin" | "partner" | "invNum" | "invDate" | "cuNum" | "vatGroup" | "baseAmt">("pin");
+  // Active Focused Alias Input
+  const [activeAliasField, setActiveAliasField] = useState<string>("pin");
 
-  // Configurable Parsing Hints State
+  // Parsing Hints
   const [headerRow, setHeaderRow] = useState(profileToEdit?.parsing_hints.header_row || 1);
   const [dataStartRow, setDataStartRow] = useState(profileToEdit?.parsing_hints.data_start_row || 2);
   const [dateFormat, setDateFormat] = useState(profileToEdit?.parsing_hints.date_format || "YYYY-MM-DD");
   const [delimiter, setDelimiter] = useState(profileToEdit?.parsing_hints.delimiter || ",");
 
-  // Sample File Header Auto-Detection & Dry-Run Preview State
+  // Collapsible sections
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Sample File & Preview
   const [sampleFile, setSampleFile] = useState<File | null>(null);
   const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
   const [previewing, setPreviewing] = useState(false);
@@ -82,107 +140,74 @@ function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditM
 
   const { notify } = useToast();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
-  // Parse header text from uploaded sample file
-  const handleSampleFileUpload = (file: File) => {
+  const handleSampleFileUpload = async (file: File) => {
     setSampleFile(file);
     setPreviewData(null);
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      if (!text) return;
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetchWithAuth("/import-profiles/detect-headers", { method: "POST", body: formData });
+      if (!res.ok) throw new Error("Failed to detect headers.");
+      const data: HeaderDetectionResponse = await res.json();
 
-      const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
-      const targetHeaderLine = lines[Math.max(0, headerRow - 1)];
-
-      if (targetHeaderLine) {
-        // Detect split by delimiter or comma
-        const sep = delimiter || ",";
-        const headers = targetHeaderLine
-          .split(sep)
-          .map((h) => h.replace(/^["']|["']$/g, "").trim())
-          .filter(Boolean);
-
-        setDetectedHeaders(headers);
-        notify(`Auto-detected ${headers.length} headers from sample file.`, "success");
+      if (data.detected_headers.length > 0) {
+        setDetectedHeaders(data.detected_headers);
+        setHeaderRow(data.header_row);
+        setDataStartRow(data.data_start_row);
+        const confMsg = data.confidence === "high" ? "Confident" : data.confidence === "medium" ? "Likely" : "Guessed";
+        notify(`${confMsg}: headers found on row ${data.header_row}, data starts row ${data.data_start_row} (${data.detected_headers.length} columns).`, "success");
+      } else {
+        notify("No headers detected. Try setting the header row manually.", "error");
       }
-    };
-    reader.readAsText(file);
+    } catch (err: unknown) {
+      notify(err instanceof Error ? err.message : "Failed to detect headers.", "error");
+    }
   };
 
-  // Helper to append a detected header tag to the active alias input
   const addHeaderToField = (headerName: string) => {
     const appendVal = (current: string) => {
       const parts = current.split(",").map((x) => x.trim()).filter(Boolean);
       if (parts.includes(headerName)) return current;
       return parts.length > 0 ? `${current}, ${headerName}` : headerName;
     };
-
-    switch (activeAliasField) {
-      case "pin": setPinAlias((c) => appendVal(c)); break;
-      case "partner": setPartnerAlias((c) => appendVal(c)); break;
-      case "invNum": setInvNumAlias((c) => appendVal(c)); break;
-      case "invDate": setInvDateAlias((c) => appendVal(c)); break;
-      case "cuNum": setCuNumAlias((c) => appendVal(c)); break;
-      case "vatGroup": setVatGroupAlias((c) => appendVal(c)); break;
-      case "baseAmt": setBaseAmtAlias((c) => appendVal(c)); break;
-    }
+    const updaters: Record<string, React.Dispatch<React.SetStateAction<string>>> = {
+      pin: setPinAlias, partner: setPartnerAlias, invNum: setInvNumAlias,
+      invDate: setInvDateAlias, cuNum: setCuNumAlias, vatGroup: setVatGroupAlias,
+      baseAmt: setBaseAmtAlias, taxAmt: setTaxAmtAlias,
+    };
+    updaters[activeAliasField]?.((c) => appendVal(c));
   };
 
-  // Live dry-run preview call
   const handleRunLivePreview = async () => {
-    if (!sampleFile) {
-      notify("Please select a sample CSV/XLSX file to run dry-run preview.", "error");
-      return;
-    }
-
+    if (!sampleFile) { notify("Please upload a sample file first.", "error"); return; }
     setPreviewing(true);
     try {
       const formData = new FormData();
       formData.append("file", sampleFile);
-
-      const res = await fetchWithAuth(`/import-profiles/preview?module=${formModule}`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || "Preview failed.");
-      }
-
+      const res = await fetchWithAuth(`/import-profiles/preview?module=${formModule}`, { method: "POST", body: formData });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail || "Preview failed."); }
       const data: MappingPreviewResponse = await res.json();
       setPreviewData(data);
-      if (data.detected_headers.length > 0) {
-        setDetectedHeaders(data.detected_headers);
-      }
-      notify(`Preview generated: ${data.total_rows_detected} rows detected.`, "success");
+      if (data.detected_headers.length > 0) setDetectedHeaders(data.detected_headers);
+      notify(`Preview: ${data.total_rows_detected} rows detected.`, "success");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error executing preview.";
-      notify(msg, "error");
-    } finally {
-      setPreviewing(false);
-    }
+      notify(err instanceof Error ? err.message : "Preview error.", "error");
+    } finally { setPreviewing(false); }
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName.trim()) {
-      notify("Please provide a profile name.", "error");
-      return;
-    }
-
+    if (!formName.trim()) { notify("Profile name is required.", "error"); return; }
     setSaving(true);
     const parseAliases = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
 
     const payload: ImportProfileCreate = {
       name: formName.trim(),
       module: formModule,
-      provider: formProvider.trim().toUpperCase(),
+      provider: formProvider.trim().toUpperCase() || "CUSTOM",
       description: formDescription.trim() || undefined,
       source_format: formFormat,
       parsing_hints: {
@@ -202,66 +227,66 @@ function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditM
         cu_number: parseAliases(cuNumAlias),
         vat_group: parseAliases(vatGroupAlias),
         base_amount: parseAliases(baseAmtAlias),
+        tax_amount: parseAliases(taxAmtAlias),
       },
       validation_rules:
         formModule === "sales"
           ? {
-            module: "sales",
-            required_fields: ["pin", "invoice_number", "base_amount"],
-            allowed_vat_codes: ["16", "8", "0", "EXEMPT"],
-            date_strictness: "LENIENT",
-            row_skip_policy: "SKIP_EMPTY_AND_TOTALS",
-            default_vat_group: "A16",
-            require_valid_pin_format: true,
-          }
+              module: "sales",
+              required_fields: ["cu_number", "vat_group", "base_amount"],
+              allowed_vat_codes: ["16", "8", "0", "EXEMPT"],
+              date_strictness: "LENIENT",
+              row_skip_policy: "SKIP_EMPTY_AND_TOTALS",
+              default_vat_group: "16",
+              require_valid_pin_format: true,
+              vat_derivation_enabled: vatDerivationEnabled,
+            }
           : {
-            module: "purchases",
-            required_fields: ["pin", "invoice_number", "base_amount"],
-            allowed_vat_codes: ["16", "8", "0", "EXEMPT"],
-            date_strictness: "LENIENT",
-            row_skip_policy: "SKIP_EMPTY_AND_TOTALS",
-            default_vat_group: "A16",
-          },
+              module: "purchases",
+              required_fields: ["cu_number", "vat_group", "base_amount"],
+              allowed_vat_codes: ["16", "8", "0", "EXEMPT"],
+              date_strictness: "LENIENT",
+              row_skip_policy: "SKIP_EMPTY_AND_TOTALS",
+              default_vat_group: "16",
+              vat_derivation_enabled: vatDerivationEnabled,
+            },
       is_default: isDefault,
     };
 
     try {
       const url = profileToEdit ? `/import-profiles/${profileToEdit.id}` : "/import-profiles";
       const method = profileToEdit ? "PUT" : "POST";
-
       const res = await fetchWithAuth(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.detail || "Failed to save profile.");
-      }
-
-      notify(
-        profileToEdit
-          ? "Import profile updated successfully!"
-          : "Custom import profile created successfully!",
-        "success"
-      );
+      if (!res.ok) { const errData = await res.json(); throw new Error(errData.detail || "Failed to save profile."); }
+      notify(profileToEdit ? "Profile updated!" : "Profile created!", "success");
       onSaved();
       onClose();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error saving profile.";
-      notify(msg, "error");
-    } finally {
-      setSaving(false);
-    }
+      notify(err instanceof Error ? err.message : "Error saving profile.", "error");
+    } finally { setSaving(false); }
   };
 
   if (!mounted) return null;
 
+  const aliasFields = [
+    { key: "cuNum", label: "CU / ETR Number", value: cuNumAlias, set: setCuNumAlias, required: true },
+    { key: "vatGroup", label: "VAT Group / Tax Rate", value: vatGroupAlias, set: setVatGroupAlias, required: true },
+    { key: "baseAmt", label: "Base Taxable Amount", value: baseAmtAlias, set: setBaseAmtAlias, required: true },
+    { key: "taxAmt", label: "Tax Amount", value: taxAmtAlias, set: setTaxAmtAlias, required: false },
+    { key: "pin", label: "PIN", value: pinAlias, set: setPinAlias, required: false },
+    { key: "partner", label: "Partner / Customer Name", value: partnerAlias, set: setPartnerAlias, required: false },
+    { key: "invNum", label: "Invoice Number", value: invNumAlias, set: setInvNumAlias, required: false },
+    { key: "invDate", label: "Invoice Date", value: invDateAlias, set: setInvDateAlias, required: false },
+  ];
+
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
-        {/* Fixed Header */}
+        {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
@@ -269,135 +294,104 @@ function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditM
             </div>
             <div>
               <h3 className="font-bold text-slate-900 text-sm">
-                {profileToEdit ? `Edit Import Profile (${profileToEdit.name})` : "Add Custom Import Profile"}
+                {profileToEdit ? `Edit: ${profileToEdit.name}` : "New Import Profile"}
               </h3>
-              <p className="text-xs text-slate-500">Configure canonical column header mappers, parsing options & dry-run test</p>
+              <p className="text-xs text-slate-500">Configure column mappings and parsing rules</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition-colors cursor-pointer"
-          >
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition-colors cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Tab Selection */}
-        <div className="px-6 border-b border-slate-100 bg-slate-50/30 flex items-center gap-4 text-xs font-semibold text-slate-500">
-          <button
-            type="button"
-            onClick={() => setActiveTab("mapping")}
-            className={`py-3 border-b-2 transition-colors flex items-center gap-1.5 cursor-pointer ${activeTab === "mapping" ? "border-blue-600 text-blue-600 font-bold" : "border-transparent hover:text-slate-800"
-              }`}
-          >
-            <Sliders className="w-3.5 h-3.5" /> Column Mappings
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("hints")}
-            className={`py-3 border-b-2 transition-colors flex items-center gap-1.5 cursor-pointer ${activeTab === "hints" ? "border-blue-600 text-blue-600 font-bold" : "border-transparent hover:text-slate-800"
-              }`}
-          >
-            <FileCode className="w-3.5 h-3.5" /> File Parsing Rules
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("preview")}
-            className={`py-3 border-b-2 transition-colors flex items-center gap-1.5 cursor-pointer ${activeTab === "preview" ? "border-blue-600 text-blue-600 font-bold" : "border-transparent hover:text-slate-800"
-              }`}
-          >
-            <Play className="w-3.5 h-3.5 text-emerald-600" /> Live Dry-Run Preview
-          </button>
-        </div>
-
         {/* Form Body */}
-        <form onSubmit={handleSaveProfile} id="add-edit-import-profile-form" className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
-          {/* Core Profile Attributes */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1 uppercase tracking-wider text-[10px]">
-                Profile Name *
-              </label>
-              <input
-                type="text"
-                required
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                placeholder="e.g. Zoho Books - Sales Custom"
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
-              />
+        <form onSubmit={handleSaveProfile} id="add-edit-import-profile-form" className="flex-1 overflow-y-auto p-6 space-y-6 text-xs">
+
+          {/* ── Section 1: Basics ── */}
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1 text-[10px] uppercase tracking-wider">Profile Name *</label>
+                <input type="text" required value={formName} onChange={(e) => setFormName(e.target.value)}
+                  placeholder="e.g. Bill Details - Purchases"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium" />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1 text-[10px] uppercase tracking-wider">Module *</label>
+                <select value={formModule} onChange={(e) => setFormModule(e.target.value as ReconciliationType)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium cursor-pointer">
+                  <option value="sales">Sales</option>
+                  <option value="purchases">Purchases</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1 text-[10px] uppercase tracking-wider">Source Format *</label>
+                <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+                  <button type="button" onClick={() => setFormFormat("csv")}
+                    className={`flex-1 px-3 py-2 text-xs font-semibold transition-colors cursor-pointer ${formFormat === "csv" ? "bg-[#0e1734] text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+                    CSV
+                  </button>
+                  <button type="button" onClick={() => setFormFormat("xlsx")}
+                    className={`flex-1 px-3 py-2 text-xs font-semibold transition-colors cursor-pointer ${formFormat === "xlsx" ? "bg-[#0e1734] text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+                    XLSX
+                  </button>
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1 uppercase tracking-wider text-[10px]">
-                Module *
-              </label>
-              <select
-                value={formModule}
-                onChange={(e) => setFormModule(e.target.value as ReconciliationType)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium cursor-pointer"
-              >
-                <option value="sales">Sales</option>
-                <option value="purchases">Purchases</option>
-              </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1 text-[10px] uppercase tracking-wider">Provider</label>
+                <input type="text" value={formProvider} onChange={(e) => setFormProvider(e.target.value)}
+                  placeholder="ZOHO, QUICKBOOKS, CUSTOM"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium" />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1 text-[10px] uppercase tracking-wider">Description</label>
+                <input type="text" value={formDescription} onChange={(e) => setFormDescription(e.target.value)}
+                  placeholder="Optional notes"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+              </div>
             </div>
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1 uppercase tracking-wider text-[10px]">
-                Provider Label
-              </label>
-              <input
-                type="text"
-                value={formProvider}
-                onChange={(e) => setFormProvider(e.target.value)}
-                placeholder="ZOHO, QUICKBOOKS, XERO, CUSTOM"
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
-              />
-            </div>
+            <label className="inline-flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)}
+                className="w-4 h-4 text-blue-600 rounded-md border-slate-300 focus:ring-blue-500 cursor-pointer" />
+              <span className="font-semibold text-slate-700 text-xs">Set as default for {formModule.toUpperCase()}</span>
+            </label>
           </div>
 
-          {activeTab === "mapping" && (
-            <>
-              {/* Sample File Drag & Auto-Detection Card */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+          {/* ── Section 2: Column Mappings ── */}
+          <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+              <Sliders className="w-4 h-4 text-blue-600" />
+              <h4 className="font-bold text-slate-800 text-xs">Column Mappings</h4>
+            </div>
+            <div className="p-4 space-y-4">
+
+              {/* Auto-Detect */}
+              <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-blue-600" />
-                    <h4 className="font-bold text-slate-900 text-xs">
-                      Auto-Detect Column Headers from Sample File
-                    </h4>
+                    <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                    <span className="font-semibold text-slate-800 text-[11px]">Auto-Detect from Sample File</span>
                   </div>
-                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer shadow-2xs transition-colors">
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer transition-colors">
                     <Upload className="w-3.5 h-3.5 text-blue-600" />
-                    {sampleFile ? sampleFile.name : "Upload Sample File"}
-                    <input
-                      type="file"
-                      accept=".csv,.xlsx"
-                      className="hidden"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files[0]) {
-                          handleSampleFileUpload(e.target.files[0]);
-                        }
-                      }}
-                    />
+                    {sampleFile ? sampleFile.name : "Upload Sample"}
+                    <input type="file" accept=".csv,.xlsx" className="hidden"
+                      onChange={(e) => { if (e.target.files?.[0]) handleSampleFileUpload(e.target.files[0]); }} />
                   </label>
                 </div>
-
                 {detectedHeaders.length > 0 && (
                   <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px] text-slate-500">
-                      <span>Click any header tag below to assign to active input field: <strong className="text-blue-700 uppercase font-mono">[{activeAliasField}]</strong></span>
-                      <span className="font-semibold text-emerald-700">{detectedHeaders.length} headers found</span>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500">
+                      <span>Click a tag to add to active field: <strong className="text-blue-700 font-mono">[{activeAliasField}]</strong></span>
+                      <span className="font-semibold text-emerald-700">{detectedHeaders.length} headers</span>
                     </div>
-                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-2 bg-white rounded-lg border border-slate-200">
+                    <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto p-2 bg-white rounded-md border border-slate-200">
                       {detectedHeaders.map((h) => (
-                        <button
-                          key={h}
-                          type="button"
-                          onClick={() => addHeaderToField(h)}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-md font-mono text-[10px] font-semibold transition-colors cursor-pointer"
-                        >
-                          <Tag className="w-2.5 h-2.5" />
-                          {h}
+                        <button key={h} type="button" onClick={() => addHeaderToField(h)}
+                          className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded text-[10px] font-mono font-semibold transition-colors cursor-pointer">
+                          <Tag className="w-2.5 h-2.5" />{h}
                         </button>
                       ))}
                     </div>
@@ -405,289 +399,159 @@ function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditM
                 )}
               </div>
 
-              {/* Column Mapping Inputs */}
-              <div className="space-y-3 font-mono text-[11px]">
-                <div onFocus={() => setActiveAliasField("pin")}>
-                  <label className="flex items-center justify-between font-semibold text-slate-700 mb-1">
-                    <span>PIN Column Aliases *</span>
-                    {activeAliasField === "pin" && <span className="text-[10px] text-blue-600 font-sans">Active Field</span>}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={pinAlias}
-                    onChange={(e) => setPinAlias(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-
-                <div onFocus={() => setActiveAliasField("invNum")}>
-                  <label className="flex items-center justify-between font-semibold text-slate-700 mb-1">
-                    <span>Invoice Number Aliases *</span>
-                    {activeAliasField === "invNum" && <span className="text-[10px] text-blue-600 font-sans">Active Field</span>}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={invNumAlias}
-                    onChange={(e) => setInvNumAlias(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-
-                <div onFocus={() => setActiveAliasField("baseAmt")}>
-                  <label className="flex items-center justify-between font-semibold text-slate-700 mb-1">
-                    <span>Base Taxable Amount Aliases *</span>
-                    {activeAliasField === "baseAmt" && <span className="text-[10px] text-blue-600 font-sans">Active Field</span>}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={baseAmtAlias}
-                    onChange={(e) => setBaseAmtAlias(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-
-                <div onFocus={() => setActiveAliasField("partner")}>
-                  <label className="flex items-center justify-between font-semibold text-slate-700 mb-1">
-                    <span>Partner / Customer Name Aliases</span>
-                    {activeAliasField === "partner" && <span className="text-[10px] text-blue-600 font-sans">Active Field</span>}
-                  </label>
-                  <input
-                    type="text"
-                    value={partnerAlias}
-                    onChange={(e) => setPartnerAlias(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-
-                <div onFocus={() => setActiveAliasField("invDate")}>
-                  <label className="flex items-center justify-between font-semibold text-slate-700 mb-1">
-                    <span>Invoice Date Aliases</span>
-                    {activeAliasField === "invDate" && <span className="text-[10px] text-blue-600 font-sans">Active Field</span>}
-                  </label>
-                  <input
-                    type="text"
-                    value={invDateAlias}
-                    onChange={(e) => setInvDateAlias(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-
-                <div onFocus={() => setActiveAliasField("cuNum")}>
-                  <label className="flex items-center justify-between font-semibold text-slate-700 mb-1">
-                    <span>CU / ETR Control Unit Number Aliases</span>
-                    {activeAliasField === "cuNum" && <span className="text-[10px] text-blue-600 font-sans">Active Field</span>}
-                  </label>
-                  <input
-                    type="text"
-                    value={cuNumAlias}
-                    onChange={(e) => setCuNumAlias(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-
-                <div onFocus={() => setActiveAliasField("vatGroup")}>
-                  <label className="flex items-center justify-between font-semibold text-slate-700 mb-1">
-                    <span>VAT Group / Tax Rate Aliases</span>
-                    {activeAliasField === "vatGroup" && <span className="text-[10px] text-blue-600 font-sans">Active Field</span>}
-                  </label>
-                  <input
-                    type="text"
-                    value={vatGroupAlias}
-                    onChange={(e) => setVatGroupAlias(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-              </div>
-            </>
-          )}
-
-          {activeTab === "hints" && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1 uppercase tracking-wider text-[10px]">
-                    Header Row Line Number
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={headerRow}
-                    onChange={(e) => setHeaderRow(parseInt(e.target.value) || 1)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    Default: 1. Adjust if your export includes title headers on top lines.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1 uppercase tracking-wider text-[10px]">
-                    Data Start Row Line Number
-                  </label>
-                  <input
-                    type="number"
-                    min={2}
-                    value={dataStartRow}
-                    onChange={(e) => setDataStartRow(parseInt(e.target.value) || 2)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1 uppercase tracking-wider text-[10px]">
-                    Date Format Hint
-                  </label>
-                  <select
-                    value={dateFormat}
-                    onChange={(e) => setDateFormat(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono font-medium cursor-pointer"
-                  >
-                    <option value="YYYY-MM-DD">YYYY-MM-DD (e.g. 2026-01-15)</option>
-                    <option value="DD/MM/YYYY">DD/MM/YYYY (e.g. 15/01/2026)</option>
-                    <option value="MM/DD/YYYY">MM/DD/YYYY (e.g. 01/15/2026)</option>
-                    <option value="DD-MM-YYYY">DD-MM-YYYY (e.g. 15-01-2026)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1 uppercase tracking-wider text-[10px]">
-                    CSV Delimiter
-                  </label>
-                  <select
-                    value={delimiter}
-                    onChange={(e) => setDelimiter(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono font-medium cursor-pointer"
-                  >
-                    <option value=",">Comma (,)</option>
-                    <option value=";">Semicolon (;)</option>
-                    <option value="\t">Tab (\t)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1 uppercase tracking-wider text-[10px]">
-                  Description (Optional Notes)
-                </label>
-                <input
-                  type="text"
-                  value={formDescription}
-                  onChange={(e) => setFormDescription(e.target.value)}
-                  placeholder="Notes on export parameters or ERP version"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 pt-2">
-                <input
-                  type="checkbox"
-                  id="is-default-checkbox"
-                  checked={isDefault}
-                  onChange={(e) => setIsDefault(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded-md border-slate-300 focus:ring-blue-500 cursor-pointer"
-                />
-                <label htmlFor="is-default-checkbox" className="font-semibold text-slate-700 text-xs cursor-pointer">
-                  Set as default import profile for {formModule.toUpperCase()} module
-                </label>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "preview" && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between bg-slate-50 border border-slate-200 p-4 rounded-xl">
-                <div>
-                  <h4 className="font-bold text-slate-900 text-xs">Run Dry-Run Mapping Preview</h4>
-                  <p className="text-[11px] text-slate-500">
-                    {sampleFile
-                      ? `Ready to preview with ${sampleFile.name}`
-                      : "Upload a sample CSV/XLSX file to execute a live parsing test."}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleRunLivePreview}
-                  disabled={previewing || !sampleFile}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                >
-                  {previewing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-white" />}
-                  Execute Live Test
-                </button>
-              </div>
-
-              {previewData && (
-                <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-white">
-                  <div className="flex items-center justify-between text-xs border-b border-slate-100 pb-2">
-                    <span className="font-bold text-slate-800">Preview Results ({previewData.filename})</span>
-                    <span className={`font-semibold px-2 py-0.5 rounded-full text-[10px] ${previewData.is_valid ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
-                      {previewData.total_rows_detected} Total Rows Detected
-                    </span>
+              {/* Alias Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {aliasFields.map(({ key, label, value, set, required }) => (
+                  <div key={key} onFocus={() => setActiveAliasField(key)}>
+                    <label className="flex items-center justify-between font-semibold text-slate-700 mb-1 text-[11px]">
+                      <span>{label}{required && " *"}</span>
+                      {activeAliasField === key && <span className="text-[10px] text-blue-600">Active</span>}
+                    </label>
+                    <input type="text" value={value} onChange={(e) => set(e.target.value)}
+                      placeholder="Comma-separated aliases"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 text-[11px] font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
                   </div>
+                ))}
+              </div>
 
-                  {previewData.preview_samples.length > 0 && (
-                    <div className="overflow-x-auto border border-slate-200 rounded-lg">
-                      <table className="w-full text-left text-[11px]">
-                        <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10px]">
-                          <tr>
-                            <th className="px-3 py-2">Row</th>
-                            <th className="px-3 py-2">Invoice No</th>
-                            <th className="px-3 py-2">PIN</th>
-                            <th className="px-3 py-2">Partner</th>
-                            <th className="px-3 py-2">Date</th>
-                            <th className="px-3 py-2 text-right">Base Amount</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 font-mono">
-                          {previewData.preview_samples.map((s) => (
-                            <tr key={s.row_index} className="hover:bg-slate-50/50">
-                              <td className="px-3 py-2 font-sans font-semibold text-slate-400">{s.row_index}</td>
-                              <td className="px-3 py-2 font-semibold text-slate-900">{s.mapped_invoice.invoice_number || "-"}</td>
-                              <td className="px-3 py-2 text-slate-700">{s.mapped_invoice.pin || "-"}</td>
-                              <td className="px-3 py-2 font-sans text-slate-800">{s.mapped_invoice.partner_name || "-"}</td>
-                              <td className="px-3 py-2 text-slate-600">{s.mapped_invoice.invoice_date || "-"}</td>
-                              <td className="px-3 py-2 text-right font-bold text-slate-900">
-                                {s.mapped_invoice.base_amount != null ? s.mapped_invoice.base_amount.toLocaleString() : "-"}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+              {/* VAT Derivation Toggle */}
+              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked={vatDerivationEnabled} onChange={(e) => setVatDerivationEnabled(e.target.checked)} className="sr-only peer" />
+                  <div className="w-9 h-5 bg-slate-300 peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+                <div>
+                  <span className="font-semibold text-slate-700 text-xs">Auto-derive VAT from Tax Amount</span>
+                  <p className="text-[10px] text-slate-400">When VAT Group column is empty, compute rate from Tax Amount / Base Amount</p>
                 </div>
-              )}
+              </div>
             </div>
-          )}
+          </div>
+
+          {/* ── Section 3: Advanced Parsing (Collapsible) ── */}
+          <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <button type="button" onClick={() => setShowAdvanced(!showAdvanced)}
+              className="w-full px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2 text-left cursor-pointer hover:bg-slate-100 transition-colors">
+              {showAdvanced ? <ChevronDown className="w-4 h-4 text-slate-500" /> : <ChevronRight className="w-4 h-4 text-slate-500" />}
+              <FileCode className="w-4 h-4 text-slate-500" />
+              <span className="font-bold text-slate-800 text-xs">Advanced Parsing Rules</span>
+              <span className="text-[10px] text-slate-400 ml-1">(header row, date format, delimiter)</span>
+            </button>
+            {showAdvanced && (
+              <div className="p-4 space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1 text-[10px] uppercase tracking-wider">Header Row</label>
+                    <input type="number" min={1} value={headerRow} onChange={(e) => setHeaderRow(parseInt(e.target.value) || 1)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1 text-[10px] uppercase tracking-wider">Data Start Row</label>
+                    <input type="number" min={2} value={dataStartRow} onChange={(e) => setDataStartRow(parseInt(e.target.value) || 2)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1 text-[10px] uppercase tracking-wider">Date Format</label>
+                    <select value={dateFormat} onChange={(e) => setDateFormat(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono font-medium cursor-pointer">
+                      <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                      <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                      <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                      <option value="DD-MM-YYYY">DD-MM-YYYY</option>
+                      <option value="DD Mon YYYY">DD Mon YYYY (e.g. 01 Jun 2026)</option>
+                      <option value="DD-Mon-YYYY">DD-Mon-YYYY (e.g. 01-Jun-2026)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1 text-[10px] uppercase tracking-wider">CSV Delimiter</label>
+                    <select value={delimiter} onChange={(e) => setDelimiter(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono font-medium cursor-pointer">
+                      <option value=",">Comma (,)</option>
+                      <option value=";">Semicolon (;)</option>
+                      <option value="\t">Tab</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── Section 4: Live Preview ── */}
+          <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Play className="w-4 h-4 text-emerald-600" />
+                <span className="font-bold text-slate-800 text-xs">Live Dry-Run Preview</span>
+              </div>
+              <button type="button" onClick={handleRunLivePreview} disabled={previewing || !sampleFile}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer">
+                {previewing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-white" />}
+                Execute Test
+              </button>
+            </div>
+            {previewData && (
+              <div className="p-4 space-y-3">
+                <div className="flex items-center gap-2 text-xs">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${previewData.is_valid ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
+                    {previewData.is_valid ? "Valid" : "Has Issues"}
+                  </span>
+                  <span className="text-slate-500">{previewData.total_rows_detected} rows detected</span>
+                </div>
+                {previewData.general_errors.length > 0 && (
+                  <div className="p-2 bg-rose-50 border border-rose-200 rounded-lg text-[11px] text-rose-700">
+                    {previewData.general_errors.join("; ")}
+                  </div>
+                )}
+                {previewData.preview_samples.length > 0 && (
+                  <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10px]">
+                        <tr>
+                          <th className="px-3 py-2">Row</th>
+                          <th className="px-3 py-2">Invoice No</th>
+                          <th className="px-3 py-2">PIN</th>
+                          <th className="px-3 py-2">Partner</th>
+                          <th className="px-3 py-2">Date</th>
+                          <th className="px-3 py-2 text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-mono">
+                        {previewData.preview_samples.map((s) => (
+                          <tr key={s.row_index} className="hover:bg-slate-50/50">
+                            <td className="px-3 py-2 font-sans font-semibold text-slate-400">{s.row_index}</td>
+                            <td className="px-3 py-2 font-semibold text-slate-900">{s.mapped_invoice.invoice_number || "-"}</td>
+                            <td className="px-3 py-2 text-slate-700">{s.mapped_invoice.pin || "-"}</td>
+                            <td className="px-3 py-2 font-sans text-slate-800">{s.mapped_invoice.partner_name || "-"}</td>
+                            <td className="px-3 py-2 text-slate-600">{s.mapped_invoice.invoice_date || "-"}</td>
+                            <td className="px-3 py-2 text-right font-bold text-slate-900">
+                              {s.mapped_invoice.base_amount != null ? s.mapped_invoice.base_amount.toLocaleString() : "-"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </form>
 
-        {/* Fixed Footer */}
+        {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
           <div className="flex items-center gap-2 text-[11px] text-slate-400">
             <Info className="w-3.5 h-3.5 text-blue-500" />
-            <span>Profiles use immutable snapshotting for reconciliation safety.</span>
+            <span>Profiles use immutable snapshots for reconciliation safety.</span>
           </div>
-
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-slate-600 hover:text-slate-900 text-xs font-semibold transition-colors cursor-pointer"
-            >
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 text-slate-600 hover:text-slate-900 text-xs font-semibold transition-colors cursor-pointer">
               Cancel
             </button>
-            <button
-              type="submit"
-              form="add-edit-import-profile-form"
-              disabled={saving}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0e1734] hover:bg-[#16224c] active:bg-[#080d21] text-white rounded-lg text-xs font-semibold shadow-xs transition-all duration-150 cursor-pointer disabled:opacity-50"
-            >
+            <button type="submit" form="add-edit-import-profile-form" disabled={saving}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0e1734] hover:bg-[#16224c] active:bg-[#080d21] text-white rounded-lg text-xs font-semibold shadow-xs transition-all duration-150 cursor-pointer disabled:opacity-50">
               {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-              {profileToEdit ? "Update Import Profile" : "Save Import Profile"}
+              {profileToEdit ? "Update Profile" : "Save Profile"}
             </button>
           </div>
         </div>
@@ -697,25 +561,22 @@ function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditM
   );
 }
 
+/* ─── View Import Profile Modal ─────────────────────────────────────────── */
+
 interface ViewModalProps {
   profile: ImportProfile;
   onClose: () => void;
-  onClone: () => void;
+  onEdit: (profile: ImportProfile) => void;
 }
 
-function ViewImportProfileModal({ profile, onClose, onClone }: ViewModalProps) {
+function ViewImportProfileModal({ profile, onClose, onEdit }: ViewModalProps) {
   const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
+  useEffect(() => { setMounted(true); }, []);
   if (!mounted) return null;
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-150">
-        {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
@@ -725,16 +586,12 @@ function ViewImportProfileModal({ profile, onClose, onClone }: ViewModalProps) {
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-slate-900 text-sm">{profile.name}</h3>
                 {profile.is_builtin ? (
-                  <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold rounded-full">
-                    System Built-in
-                  </span>
+                  <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold rounded-full">System Built-in</span>
                 ) : (
-                  <span className="px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold rounded-full">
-                    Company Custom
-                  </span>
+                  <span className="px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold rounded-full">Company Custom</span>
                 )}
               </div>
-              <p className="text-xs text-slate-500">Provider: {profile.provider} · Format: {profile.source_format.toUpperCase()} · v{profile.version}</p>
+              <p className="text-xs text-slate-500">Provider: {profile.provider} &middot; Format: {profile.source_format.toUpperCase()} &middot; v{profile.version}</p>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition-colors cursor-pointer">
@@ -742,35 +599,21 @@ function ViewImportProfileModal({ profile, onClose, onClone }: ViewModalProps) {
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-6 space-y-4 text-xs max-h-[75vh] overflow-y-auto">
+        <div className="p-6 space-y-4 text-xs max-h-[70vh] overflow-y-auto">
           {profile.description && (
-            <div className="p-3 bg-slate-50 rounded-lg text-slate-600 border border-slate-200">
-              {profile.description}
-            </div>
+            <div className="p-3 bg-slate-50 rounded-lg text-slate-600 border border-slate-200">{profile.description}</div>
           )}
 
           <div className="space-y-2">
-            <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider text-[11px]">
-              Column Mapping Rules
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono text-[11px]">
-              {(Object.entries(profile.column_mapping) as [string, string[]][]).map(([field, aliases]: [string, string[]]) => (
+            <h4 className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">Column Mapping</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono text-[11px]">
+              {Object.entries(profile.column_mapping).map(([field, aliases]) => (
                 <div key={field} className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                  <div className="font-sans font-semibold text-slate-700 uppercase text-[10px] tracking-wider mb-1">
-                    {field.replace("_", " ")}
-                  </div>
+                  <div className="font-sans font-semibold text-slate-700 uppercase text-[10px] tracking-wider mb-1">{field.replace(/_/g, " ")}</div>
                   <div className="flex flex-wrap gap-1">
-                    {aliases.length > 0 ? (
-                      aliases.map((a: string) => (
-                        <span key={a} className="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-slate-800 text-[10px]">
-                          {a}
-                        </span>
-                      ))
-                    ) : (
-
-                      <span className="text-slate-400 font-sans italic text-[10px]">None defined</span>
-                    )}
+                    {(aliases as string[]).length > 0 ? (aliases as string[]).map((a: string) => (
+                      <span key={a} className="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-slate-800 text-[10px]">{a}</span>
+                    )) : <span className="text-slate-400 font-sans italic text-[10px]">None</span>}
                   </div>
                 </div>
               ))}
@@ -778,16 +621,14 @@ function ViewImportProfileModal({ profile, onClose, onClone }: ViewModalProps) {
           </div>
 
           <div className="space-y-2 pt-2 border-t border-slate-100">
-            <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider text-[11px]">
-              Parsing Parameters
-            </h4>
+            <h4 className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">Parsing Rules</h4>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-[11px]">
               <div className="p-2 bg-slate-50 rounded border border-slate-200">
                 <span className="font-sans text-[10px] text-slate-400 block">Header Row</span>
                 <span className="font-bold text-slate-800">{profile.parsing_hints.header_row}</span>
               </div>
               <div className="p-2 bg-slate-50 rounded border border-slate-200">
-                <span className="font-sans text-[10px] text-slate-400 block">Data Start Row</span>
+                <span className="font-sans text-[10px] text-slate-400 block">Data Start</span>
                 <span className="font-bold text-slate-800">{profile.parsing_hints.data_start_row}</span>
               </div>
               <div className="p-2 bg-slate-50 rounded border border-slate-200">
@@ -800,23 +641,20 @@ function ViewImportProfileModal({ profile, onClose, onClone }: ViewModalProps) {
               </div>
             </div>
           </div>
+
+          {profile.validation_rules.vat_derivation_enabled && (
+            <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg text-[11px] text-blue-700">
+              <Sparkles className="w-3.5 h-3.5" />
+              VAT auto-derivation is enabled (computes rate from Tax Amount / Base Amount)
+            </div>
+          )}
         </div>
 
-        {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:text-slate-900 font-semibold text-xs cursor-pointer">
-            Close
-          </button>
-
-          <button
-            onClick={() => {
-              onClose();
-              onClone();
-            }}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs cursor-pointer transition-colors"
-          >
-            <Copy className="w-4 h-4" />
-            Clone as Company Profile
+          <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:text-slate-900 font-semibold text-xs cursor-pointer">Close</button>
+          <button onClick={() => { onClose(); onEdit(profile); }}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs cursor-pointer transition-colors">
+            <Pencil className="w-4 h-4" />Edit Profile
           </button>
         </div>
       </div>
@@ -825,18 +663,30 @@ function ViewImportProfileModal({ profile, onClose, onClone }: ViewModalProps) {
   );
 }
 
+/* ─── Main Component ────────────────────────────────────────────────────── */
+
 export function ERPImportProfilesCard({ selectedCompanyId }: ERPImportProfilesCardProps) {
   const { notify } = useToast();
   const [profiles, setProfiles] = useState<ImportProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeModuleFilter, setActiveModuleFilter] = useState<"all" | "sales" | "purchases">("all");
 
-  // Modal State
+  // Modals
   const [showAddEditModal, setShowAddEditModal] = useState(false);
   const [editingProfile, setEditingProfile] = useState<ImportProfile | null>(null);
-
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewingProfile, setViewingProfile] = useState<ImportProfile | null>(null);
+
+  // Confirm modal
+  const [confirmModal, setConfirmModal] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    confirmLabel: string;
+    variant?: "danger" | "warning" | "default";
+    onConfirm: () => void;
+  }>({ open: false, title: "", message: "", confirmLabel: "", onConfirm: () => {} });
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
   const [actionProfileId, setActionProfileId] = useState<number | null>(null);
 
@@ -849,61 +699,84 @@ export function ERPImportProfilesCard({ selectedCompanyId }: ERPImportProfilesCa
       const data: ImportProfile[] = await res.json();
       setProfiles(data);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to load import profiles.";
-      notify(msg, "error");
-    } finally {
-      setLoading(false);
-    }
+      notify(err instanceof Error ? err.message : "Failed to load profiles.", "error");
+    } finally { setLoading(false); }
   }, [activeModuleFilter, notify]);
 
-  useEffect(() => {
-    loadProfiles();
-  }, [loadProfiles]);
+  useEffect(() => { loadProfiles(); }, [loadProfiles]);
 
   const handleSetDefault = async (id: number) => {
     setActionProfileId(id);
     try {
       const res = await fetchWithAuth(`/import-profiles/${id}/set-default`, { method: "POST" });
-      if (!res.ok) throw new Error("Failed to set profile as default.");
-      notify("Default import profile updated successfully.", "success");
+      if (!res.ok) throw new Error("Failed to set default.");
+      notify("Default profile updated.", "success");
       loadProfiles();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error setting default profile.";
-      notify(msg, "error");
-    } finally {
-      setActionProfileId(null);
-    }
+      notify(err instanceof Error ? err.message : "Error setting default.", "error");
+    } finally { setActionProfileId(null); }
   };
 
-  const handleClone = async (id: number, name: string) => {
+  const handleClone = async (id: number, name: string): Promise<ImportProfile | null> => {
     setActionProfileId(id);
     try {
       const res = await fetchWithAuth(`/import-profiles/${id}/clone?name=${encodeURIComponent(`${name} (Custom)`)}`, { method: "POST" });
       if (!res.ok) throw new Error("Failed to clone profile.");
-      notify(`Profile cloned successfully into editable company profile.`, "success");
+      notify("Profile cloned successfully.", "success");
       loadProfiles();
+      return await res.json();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error cloning profile.";
-      notify(msg, "error");
-    } finally {
-      setActionProfileId(null);
+      notify(err instanceof Error ? err.message : "Error cloning.", "error");
+      return null;
+    } finally { setActionProfileId(null); }
+  };
+
+  const handleCloneAndEdit = async (profile: ImportProfile) => {
+    const cloned = await handleClone(profile.id, profile.name);
+    if (cloned) {
+      setEditingProfile(cloned);
+      setShowAddEditModal(true);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to archive this custom import profile?")) return;
-    setActionProfileId(id);
-    try {
-      const res = await fetchWithAuth(`/import-profiles/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to archive profile.");
-      notify("Import profile archived successfully.", "success");
-      loadProfiles();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error archiving profile.";
-      notify(msg, "error");
-    } finally {
-      setActionProfileId(null);
-    }
+    setConfirmModal({
+      open: true,
+      title: "Delete Import Profile",
+      message: "This will permanently delete this profile. This action cannot be undone.",
+      confirmLabel: "Delete Permanently",
+      variant: "danger",
+      onConfirm: async () => {
+        setConfirmLoading(true);
+        try {
+          const res = await fetchWithAuth(`/import-profiles/${id}`, { method: "DELETE" });
+          if (!res.ok) throw new Error("Failed to delete profile.");
+          notify("Profile deleted permanently.", "success");
+          loadProfiles();
+        } catch (err: unknown) {
+          notify(err instanceof Error ? err.message : "Error deleting profile.", "error");
+        } finally {
+          setConfirmLoading(false);
+          setConfirmModal((prev) => ({ ...prev, open: false }));
+        }
+      },
+    });
+  };
+
+  const openSetDefaultConfirm = (p: ImportProfile) => {
+    setConfirmModal({
+      open: true,
+      title: "Set Default Profile",
+      message: `Set "${p.name}" as the default profile for ${p.module}? This will replace any existing default for this module.`,
+      confirmLabel: "Set as Default",
+      variant: "default",
+      onConfirm: async () => {
+        setConfirmLoading(true);
+        await handleSetDefault(p.id);
+        setConfirmLoading(false);
+        setConfirmModal((prev) => ({ ...prev, open: false }));
+      },
+    });
   };
 
   return (
@@ -911,10 +784,7 @@ export function ERPImportProfilesCard({ selectedCompanyId }: ERPImportProfilesCa
       {showAddEditModal && (
         <AddEditImportProfileModal
           profileToEdit={editingProfile}
-          onClose={() => {
-            setShowAddEditModal(false);
-            setEditingProfile(null);
-          }}
+          onClose={() => { setShowAddEditModal(false); setEditingProfile(null); }}
           onSaved={loadProfiles}
         />
       )}
@@ -922,11 +792,20 @@ export function ERPImportProfilesCard({ selectedCompanyId }: ERPImportProfilesCa
       {showViewModal && viewingProfile && (
         <ViewImportProfileModal
           profile={viewingProfile}
-          onClose={() => {
-            setShowViewModal(false);
-            setViewingProfile(null);
-          }}
-          onClone={() => handleClone(viewingProfile.id, viewingProfile.name)}
+          onClose={() => { setShowViewModal(false); setViewingProfile(null); }}
+          onEdit={(p) => { setEditingProfile(p); setShowAddEditModal(true); }}
+        />
+      )}
+
+      {confirmModal.open && (
+        <ConfirmModal
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmLabel={confirmModal.confirmLabel}
+          variant={confirmModal.variant}
+          loading={confirmLoading}
+          onConfirm={confirmModal.onConfirm}
+          onClose={() => { setConfirmModal((prev) => ({ ...prev, open: false })); setConfirmLoading(false); }}
         />
       )}
 
@@ -939,57 +818,37 @@ export function ERPImportProfilesCard({ selectedCompanyId }: ERPImportProfilesCa
               ERP Import Profiles
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Configurable column mappings, header auto-detection, and dry-run preview for Zoho, QuickBooks, Xero & custom exports.
+              Column mappings, header auto-detection, and dry-run preview for Zoho, QuickBooks, Xero & custom exports.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Module Filter */}
             <div className="inline-flex p-1 bg-slate-100 rounded-lg text-xs font-semibold">
-              <button
-                onClick={() => setActiveModuleFilter("all")}
-                className={`px-3 py-1 rounded-md transition-colors cursor-pointer ${activeModuleFilter === "all" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"}`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setActiveModuleFilter("sales")}
-                className={`px-3 py-1 rounded-md transition-colors cursor-pointer ${activeModuleFilter === "sales" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"}`}
-              >
-                Sales
-              </button>
-              <button
-                onClick={() => setActiveModuleFilter("purchases")}
-                className={`px-3 py-1 rounded-md transition-colors cursor-pointer ${activeModuleFilter === "purchases" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"}`}
-              >
-                Purchases
-              </button>
+              {(["all", "sales", "purchases"] as const).map((f) => (
+                <button key={f} onClick={() => setActiveModuleFilter(f)}
+                  className={`px-3 py-1 rounded-md transition-colors cursor-pointer capitalize ${activeModuleFilter === f ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"}`}>
+                  {f}
+                </button>
+              ))}
             </div>
 
-            <button
-              onClick={() => {
-                setEditingProfile(null);
-                setShowAddEditModal(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#0e1734] hover:bg-[#16224c] text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              Add Import Profile
+            <button onClick={() => { setEditingProfile(null); setShowAddEditModal(true); }}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#0e1734] hover:bg-[#16224c] text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer">
+              <Plus className="w-4 h-4" />Add Profile
             </button>
           </div>
         </div>
 
-        {/* Profile List Table */}
+        {/* Table */}
         <div className="p-6">
           {loading ? (
             <div className="flex items-center justify-center py-12 gap-2 text-slate-400 text-xs">
-              <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-              Loading import profiles...
+              <Loader2 className="w-5 h-5 animate-spin text-blue-600" />Loading profiles...
             </div>
           ) : profiles.length === 0 ? (
             <div className="text-center py-12 text-slate-400 text-xs space-y-2">
               <FileCode className="w-8 h-8 mx-auto text-slate-300" />
-              <p>No import profiles found for selected filter.</p>
+              <p>No profiles found for this filter.</p>
             </div>
           ) : (
             <div className="border border-slate-200 rounded-lg overflow-hidden">
@@ -1008,95 +867,57 @@ export function ERPImportProfilesCard({ selectedCompanyId }: ERPImportProfilesCa
                 <tbody className="divide-y divide-slate-100">
                   {profiles.map((p) => (
                     <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="px-4 py-3 font-semibold text-slate-900">
-                        <div>{p.name}</div>
-                        {p.description && <div className="text-[11px] font-normal text-slate-400">{p.description}</div>}
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-slate-900">{p.name}</div>
+                        {p.description && <div className="text-[11px] font-normal text-slate-400 mt-0.5">{p.description}</div>}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${p.module === "sales" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-purple-50 text-purple-700 border border-purple-200"}`}>
                           {p.module}
                         </span>
                       </td>
-                      <td className="px-4 py-3 font-mono font-medium text-slate-700">
-                        <span className="px-2 py-0.5 bg-slate-100 rounded-md border border-slate-200 text-[10px] font-bold">
-                          {p.provider}
-                        </span>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-0.5 bg-slate-100 rounded-md border border-slate-200 text-[10px] font-bold font-mono">{p.provider}</span>
                       </td>
-                      <td className="px-4 py-3 text-slate-500">
+                      <td className="px-4 py-3">
                         {p.is_builtin ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600">
-                            <Database className="w-3 h-3" /> System Built-in
+                            <Database className="w-3 h-3" />System
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600">
-                            <Sliders className="w-3 h-3" /> Company Custom
+                            <Sliders className="w-3 h-3" />Custom
                           </span>
                         )}
                       </td>
                       <td className="px-4 py-3 font-mono text-slate-500 uppercase">{p.source_format}</td>
                       <td className="px-4 py-3 text-center">
                         {p.is_default ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold text-[11px]">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Default
+                          <span className="inline-flex items-center gap-1 text-amber-600 font-semibold text-[11px]">
+                            <Star className="w-3.5 h-3.5 fill-amber-400" />Default
                           </span>
                         ) : (
-                          <button
-                            onClick={() => handleSetDefault(p.id)}
-                            disabled={actionProfileId === p.id}
-                            className="text-slate-400 hover:text-slate-700 underline text-[11px] cursor-pointer"
-                          >
-                            Make Default
+                          <button onClick={() => openSetDefaultConfirm(p)} disabled={actionProfileId === p.id}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50">
+                            <Star className="w-3 h-3" />Set Default
                           </button>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right space-x-1">
-                        {/* View Rules Modal Action */}
-                        <button
-                          onClick={() => {
-                            setViewingProfile(p);
-                            setShowViewModal(true);
-                          }}
-                          title="View Profile Details &  Mappings"
-                          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
-
-                        {/* Edit Action (For Custom Profiles) */}
-                        {!p.is_builtin && (
-                          <button
-                            onClick={() => {
-                              setEditingProfile(p);
-                              setShowAddEditModal(true);
-                            }}
-                            title="Edit Custom Profile"
-                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
-                          >
+                      <td className="px-4 py-3 text-right">
+                        <div className="inline-flex items-center gap-0.5">
+                          <button onClick={() => { setViewingProfile(p); setShowViewModal(true); }}
+                            title="View Details" className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors cursor-pointer">
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => { setEditingProfile(p); setShowAddEditModal(true); }}
+                            title="Edit" className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer">
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
-                        )}
-
-                        {/* Clone Action */}
-                        <button
-                          onClick={() => handleClone(p.id, p.name)}
-                          disabled={actionProfileId === p.id}
-                          title="Clone as Company Custom Profile"
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                        </button>
-
-                        {/* Archive Action */}
-                        {!p.is_builtin && (
-                          <button
-                            onClick={() => handleDelete(p.id)}
-                            disabled={actionProfileId === p.id}
-                            title="Archive Profile"
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
-                          >
+                          <button onClick={() => handleDelete(p.id)} disabled={actionProfileId === p.id}
+                            title="Delete" className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer disabled:opacity-50">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   ))}

@@ -10,6 +10,7 @@ from fastapi import UploadFile
 
 from app.models.import_profile import SourceFormat
 from app.schemas.import_profile import (
+    HeaderDetectionResponse,
     ImportProfileSnapshot,
     MappingPreviewResponse,
     PreviewRowSample,
@@ -107,6 +108,25 @@ def parse_numeric_amount(val: Any, decimal_sep: str = ".", thousand_sep: str = "
         return None
 
 
+# Standard KRA VAT rate thresholds (rate -> display code)
+_VAT_RATE_THRESHOLDS: List[Tuple[float, float, str]] = [
+    (0.155, 0.165, "16"),   # ~16%
+    (0.075, 0.085, "8"),    # ~8%
+    (-0.001, 0.001, "0"),   # ~0%
+]
+
+
+def derive_vat_group(tax_amount: Decimal, base_amount: Decimal, default: str = "16") -> str:
+    """Derives VAT percentage code from tax_amount / base_amount ratio."""
+    if base_amount == 0:
+        return default
+    rate = float(tax_amount / base_amount)
+    for low, high, code in _VAT_RATE_THRESHOLDS:
+        if low <= rate <= high:
+            return code
+    return default
+
+
 class ERPImportService:
     @classmethod
     def read_file_dataframe(
@@ -167,6 +187,7 @@ class ERPImportService:
         col_cu_num = match_column_name(headers, mapping.cu_number)
         col_vat_group = match_column_name(headers, mapping.vat_group)
         col_base_amt = match_column_name(headers, mapping.base_amount)
+        col_tax_amt = match_column_name(headers, mapping.tax_amount)
 
         invoices: List[Invoice] = []
         errors: List[CSVValidationErrorDetail] = []
@@ -186,6 +207,13 @@ class ERPImportService:
             raw_base_val = row[col_base_amt] if col_base_amt and pd.notna(row[col_base_amt]) else None
             parsed_amount = parse_numeric_amount(raw_base_val, hints.decimal_separator, hints.thousands_separator)
 
+            # VAT derivation: compute group from tax_amount / base_amount ratio when vat_group column is absent
+            if not col_vat_group and col_tax_amt and getattr(rules, "vat_derivation_enabled", False):
+                raw_tax_val = row[col_tax_amt] if pd.notna(row[col_tax_amt]) else None
+                parsed_tax = parse_numeric_amount(raw_tax_val, hints.decimal_separator, hints.thousands_separator)
+                if parsed_tax is not None and parsed_amount is not None:
+                    raw_vat_group = derive_vat_group(parsed_tax, parsed_amount, rules.default_vat_group)
+
             # Skip empty rows policy
             if rules.row_skip_policy == "SKIP_EMPTY_AND_TOTALS":
                 if not raw_pin and not raw_inv_num and parsed_amount is None:
@@ -198,11 +226,11 @@ class ERPImportService:
 
             # Validation checks
             row_has_errors = False
-            if "pin" in rules.required_fields and not raw_pin:
-                errors.append(CSVValidationErrorDetail(row=excel_row_num, column=col_pin or "PIN", message="PIN is required."))
+            if "cu_number" in rules.required_fields and not raw_cu_num:
+                errors.append(CSVValidationErrorDetail(row=excel_row_num, column=col_cu_num or "CU Number", message="CU Number is required."))
                 row_has_errors = True
-            if "invoice_number" in rules.required_fields and not raw_inv_num:
-                errors.append(CSVValidationErrorDetail(row=excel_row_num, column=col_inv_num or "Invoice Number", message="Invoice Number is required."))
+            if "vat_group" in rules.required_fields and not raw_vat_group:
+                errors.append(CSVValidationErrorDetail(row=excel_row_num, column=col_vat_group or "VAT Group", message="VAT Group is required."))
                 row_has_errors = True
             if "base_amount" in rules.required_fields and parsed_amount is None:
                 errors.append(CSVValidationErrorDetail(row=excel_row_num, column=col_base_amt or "Base Amount", message="Base Amount is missing or unparseable."))
@@ -254,10 +282,10 @@ class ERPImportService:
         col_vat_group = match_column_name(headers, mapping.vat_group)
         col_base_amt = match_column_name(headers, mapping.base_amount)
 
-        if not col_pin:
-            general_errors.append("Could not auto-match PIN column header.")
-        if not col_inv_num:
-            general_errors.append("Could not auto-match Invoice Number column header.")
+        if not col_cu_num:
+            general_errors.append("Could not auto-match CU Number column header.")
+        if not col_vat_group:
+            general_errors.append("Could not auto-match VAT Group column header.")
         if not col_base_amt:
             general_errors.append("Could not auto-match Base Amount column header.")
 
@@ -279,10 +307,10 @@ class ERPImportService:
             parsed_amount = parse_numeric_amount(raw_base_val, hints.decimal_separator, hints.thousands_separator)
 
             row_errors: List[str] = []
-            if "pin" in rules.required_fields and not raw_pin:
-                row_errors.append("PIN is missing.")
-            if "invoice_number" in rules.required_fields and not raw_inv_num:
-                row_errors.append("Invoice Number is missing.")
+            if "cu_number" in rules.required_fields and not raw_cu_num:
+                row_errors.append("CU Number is missing.")
+            if "vat_group" in rules.required_fields and not raw_vat_group:
+                row_errors.append("VAT Group is missing.")
             if "base_amount" in rules.required_fields and parsed_amount is None:
                 row_errors.append("Base Amount is missing or unparseable.")
 
@@ -311,4 +339,101 @@ class ERPImportService:
             preview_samples=preview_samples,
             is_valid=is_valid,
             general_errors=general_errors,
+        )
+
+    @classmethod
+    def detect_headers(
+        cls, file_bytes: bytes, filename: str, max_scan_rows: int = 10
+    ) -> HeaderDetectionResponse:
+        """Scans the first N rows of a file to auto-detect which row contains headers."""
+        is_xlsx = filename.endswith(".xlsx")
+
+        if is_xlsx:
+            excel_file = pd.ExcelFile(io.BytesIO(file_bytes))
+            df_raw = pd.read_excel(excel_file, sheet_name=0, header=None, nrows=max_scan_rows)
+        else:
+            for enc in ["utf-8-sig", "utf-8", "latin-1", "cp1252"]:
+                try:
+                    content = file_bytes.decode(enc)
+                    df_raw = pd.read_csv(
+                        io.StringIO(content), header=None, nrows=max_scan_rows,
+                        dtype=str, skipinitialspace=True, on_bad_lines="skip",
+                    )
+                    break
+                except Exception:
+                    continue
+            else:
+                return HeaderDetectionResponse(
+                    filename=filename, detected_headers=[], header_row=1,
+                    data_start_row=2, scanned_rows=0, confidence="low",
+                )
+
+        if df_raw.empty:
+            return HeaderDetectionResponse(
+                filename=filename, detected_headers=[], header_row=1,
+                data_start_row=2, scanned_rows=0, confidence="low",
+            )
+
+        # Keywords that indicate a header row for ERP import files
+        _HEADER_KEYWORDS = {
+            "cu_number": {"cu", "control unit", "etr", "serial", "cu number", "etr number", "cu no", "cu serial", "control unit no"},
+            "vat_group": {"vat", "tax rate", "tax type", "vat group", "vat code", "tax code", "rate"},
+            "base_amount": {"amount", "base", "taxable", "subtotal", "total", "value", "base amount", "taxable amount", "total amount", "net"},
+            "pin": {"pin", "kra", "tax number", "customer pin", "supplier pin"},
+            "invoice_number": {"invoice", "docnum", "receipt", "doc num", "inv no", "invoice number", "invoice no", "receipt no"},
+            "invoice_date": {"date", "invoice date", "doc date", "transaction date"},
+            "partner_name": {"name", "customer", "supplier", "vendor", "client", "partner", "customer name", "supplier name"},
+            "tax_amount": {"tax amount", "vat amount", "tax amt", "vat amt"},
+        }
+
+        def _score_row(values: List[str]) -> Tuple[int, List[str]]:
+            """Score a row against known header keywords. Returns (score, matched_headers)."""
+            score = 0
+            matched = []
+            normalized = [re.sub(r"\s+", " ", str(v).strip().lower()) for v in values]
+            for v in normalized:
+                if not v:
+                    continue
+                for field, keywords in _HEADER_KEYWORDS.items():
+                    if v in keywords or any(kw in v for kw in keywords):
+                        score += 1
+                        matched.append(v)
+                        break
+            return score, matched
+
+        best_row_idx = 0
+        best_score = 0
+        best_headers: List[str] = []
+        scores: List[Tuple[int, int]] = []
+
+        for i in range(len(df_raw)):
+            row_vals = [str(v).strip() if pd.notna(v) else "" for v in df_raw.iloc[i]]
+            score, _ = _score_row(row_vals)
+            scores.append((i, score))
+            if score > best_score:
+                best_score = score
+                best_row_idx = i
+                best_headers = [str(v).strip() if pd.notna(v) else f"Column_{j+1}" for j, v in enumerate(df_raw.iloc[i])]
+
+        # Determine confidence
+        if best_score >= 4:
+            confidence = "high"
+        elif best_score >= 2:
+            confidence = "medium"
+        else:
+            confidence = "low"
+            # Fallback: assume row 0 is header (most common case)
+            best_row_idx = 0
+            best_headers = [str(v).strip() if pd.notna(v) else f"Column_{j+1}" for j, v in enumerate(df_raw.iloc[0])]
+
+        header_row = best_row_idx + 1  # 1-indexed
+        data_start_row = header_row + 1
+
+        return HeaderDetectionResponse(
+            filename=filename,
+            detected_headers=best_headers,
+            header_row=header_row,
+            data_start_row=data_start_row,
+            scanned_rows=len(df_raw),
+            confidence=confidence,
         )
