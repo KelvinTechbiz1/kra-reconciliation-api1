@@ -32,18 +32,18 @@ class CanonicalColumnMappingSchema(BaseModel):
 class SalesValidationRulesSchema(BaseModel):
     module: Literal[ReconciliationType.SALES] = ReconciliationType.SALES
     required_fields: List[str] = Field(default_factory=lambda: ["cu_number", "vat_group", "base_amount"])
-    allowed_vat_codes: List[str] = Field(default_factory=lambda: ["16", "8", "0", "EXEMPT"])
+    allowed_vat_codes: List[str] = Field(default_factory=lambda: ["16", "8", "0", "EXEMPT", "ZERO_RATED", "NON_TAXABLE"])
     date_strictness: Literal["STRICT", "LENIENT"] = "LENIENT"
     row_skip_policy: Literal["SKIP_EMPTY_AND_TOTALS", "FAIL_ON_EMPTY"] = "SKIP_EMPTY_AND_TOTALS"
     default_vat_group: str = "16"
-    require_valid_pin_format: bool = True
+    require_valid_pin_format: bool = False
     vat_derivation_enabled: bool = False
 
 
 class PurchasesValidationRulesSchema(BaseModel):
     module: Literal[ReconciliationType.PURCHASES] = ReconciliationType.PURCHASES
     required_fields: List[str] = Field(default_factory=lambda: ["cu_number", "vat_group", "base_amount"])
-    allowed_vat_codes: List[str] = Field(default_factory=lambda: ["16", "8", "0", "EXEMPT"])
+    allowed_vat_codes: List[str] = Field(default_factory=lambda: ["16", "8", "0", "EXEMPT", "ZERO_RATED", "NON_TAXABLE"])
     date_strictness: Literal["STRICT", "LENIENT"] = "LENIENT"
     row_skip_policy: Literal["SKIP_EMPTY_AND_TOTALS", "FAIL_ON_EMPTY"] = "SKIP_EMPTY_AND_TOTALS"
     default_vat_group: str = "16"

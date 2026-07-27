@@ -127,6 +127,25 @@ def derive_vat_group(tax_amount: Decimal, base_amount: Decimal, default: str = "
     return default
 
 
+def normalize_vat_value(val: Any) -> str:
+    """Normalizes raw VAT rate strings into canonical representations.
+    e.g. '18%' -> '18', '18.0' -> '18', '12.5%' -> '12.5', '0%' -> '0', 'ZERO_RATED' -> 'ZERO_RATED'
+    """
+    if val is None or pd.isna(val):
+        return ""
+    str_val = str(val).strip().upper()
+    if not str_val:
+        return ""
+    cleaned = str_val.replace("%", "").strip()
+    try:
+        num = float(cleaned)
+        if num == int(num):
+            return str(int(num))
+        return str(num)
+    except ValueError:
+        return str_val
+
+
 class ERPImportService:
     @classmethod
     def read_file_dataframe(
@@ -199,7 +218,7 @@ class ERPImportService:
             raw_partner = str(row[col_partner]).strip() if col_partner and pd.notna(row[col_partner]) else ""
             raw_inv_num = str(row[col_inv_num]).strip() if col_inv_num and pd.notna(row[col_inv_num]) else ""
             raw_cu_num = str(row[col_cu_num]).strip() if col_cu_num and pd.notna(row[col_cu_num]) else ""
-            raw_vat_group = str(row[col_vat_group]).strip() if col_vat_group and pd.notna(row[col_vat_group]) else rules.default_vat_group
+            raw_vat_group = normalize_vat_value(row[col_vat_group]) if col_vat_group and pd.notna(row[col_vat_group]) else rules.default_vat_group
             
             raw_date_val = row[col_inv_date] if col_inv_date and pd.notna(row[col_inv_date]) else None
             parsed_date = parse_date_value(raw_date_val, hints.date_format)
@@ -298,7 +317,7 @@ class ERPImportService:
             raw_partner = str(row[col_partner]).strip() if col_partner and pd.notna(row[col_partner]) else ""
             raw_inv_num = str(row[col_inv_num]).strip() if col_inv_num and pd.notna(row[col_inv_num]) else ""
             raw_cu_num = str(row[col_cu_num]).strip() if col_cu_num and pd.notna(row[col_cu_num]) else ""
-            raw_vat_group = str(row[col_vat_group]).strip() if col_vat_group and pd.notna(row[col_vat_group]) else rules.default_vat_group
+            raw_vat_group = normalize_vat_value(row[col_vat_group]) if col_vat_group and pd.notna(row[col_vat_group]) else rules.default_vat_group
 
             raw_date_val = row[col_inv_date] if col_inv_date and pd.notna(row[col_inv_date]) else None
             parsed_date = parse_date_value(raw_date_val, hints.date_format)

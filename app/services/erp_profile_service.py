@@ -256,6 +256,7 @@ class ERPProfileService:
 
         if payload.is_default:
             db.query(ImportProfile).filter(
+                ImportProfile.company_id == company_id,
                 ImportProfile.module == payload.module,
             ).update({"is_default": False}, synchronize_session=False)
 
@@ -323,8 +324,9 @@ class ERPProfileService:
         if payload.validation_rules is not None:
             profile.validation_rules = payload.validation_rules.model_dump()
 
-        if payload.is_default is True and target_company_id is not None:
+        if payload.is_default is True:
             db.query(ImportProfile).filter(
+                ImportProfile.company_id == target_company_id,
                 ImportProfile.module == profile.module,
                 ImportProfile.id != profile_id,
             ).update({"is_default": False}, synchronize_session=False)
@@ -354,11 +356,10 @@ class ERPProfileService:
                 raise KeyError(f"Import profile ID {profile_id} not found or is inactive.")
 
             target_company_id = profile.company_id or company_id
-            if not target_company_id:
-                raise ValueError("Cannot set built-in profile as default without a valid company context.")
 
-            # Clear ALL previous defaults for this module (company + built-in)
+            # Clear previous defaults for this company & module only
             db.query(ImportProfile).filter(
+                ImportProfile.company_id == target_company_id,
                 ImportProfile.module == profile.module,
                 ImportProfile.id != profile_id,
                 ImportProfile.is_active == True,

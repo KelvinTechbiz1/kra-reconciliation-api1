@@ -361,55 +361,50 @@ function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditM
 
           {/* ── Section 2: Column Mappings ── */}
           <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-              <Sliders className="w-4 h-4 text-blue-600" />
-              <h4 className="font-bold text-slate-800 text-xs">Column Mappings</h4>
+            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-blue-600" />
+                <h4 className="font-bold text-slate-800 text-xs">Column Mappings</h4>
+              </div>
+              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer transition-colors">
+                <Upload className="w-3.5 h-3.5 text-blue-600" />
+                {sampleFile ? sampleFile.name : "Upload Sample File"}
+                <input type="file" accept=".csv,.xlsx" className="hidden"
+                  onChange={(e) => { if (e.target.files?.[0]) handleSampleFileUpload(e.target.files[0]); }} />
+              </label>
             </div>
             <div className="p-4 space-y-4">
-
-              {/* Auto-Detect */}
-              <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-                    <span className="font-semibold text-slate-800 text-[11px]">Auto-Detect from Sample File</span>
-                  </div>
-                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer transition-colors">
-                    <Upload className="w-3.5 h-3.5 text-blue-600" />
-                    {sampleFile ? sampleFile.name : "Upload Sample"}
-                    <input type="file" accept=".csv,.xlsx" className="hidden"
-                      onChange={(e) => { if (e.target.files?.[0]) handleSampleFileUpload(e.target.files[0]); }} />
-                  </label>
-                </div>
-                {detectedHeaders.length > 0 && (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[10px] text-slate-500">
-                      <span>Click a tag to add to active field: <strong className="text-blue-700 font-mono">[{activeAliasField}]</strong></span>
-                      <span className="font-semibold text-emerald-700">{detectedHeaders.length} headers</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto p-2 bg-white rounded-md border border-slate-200">
-                      {detectedHeaders.map((h) => (
-                        <button key={h} type="button" onClick={() => addHeaderToField(h)}
-                          className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded text-[10px] font-mono font-semibold transition-colors cursor-pointer">
-                          <Tag className="w-2.5 h-2.5" />{h}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Alias Inputs */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {aliasFields.map(({ key, label, value, set, required }) => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {[
+                  { key: "cuNum", label: "CU / ETR Number", value: cuNumAlias, set: setCuNumAlias, required: true },
+                  { key: "vatGroup", label: "VAT Rate / Group", value: vatGroupAlias, set: setVatGroupAlias, required: true },
+                  { key: "baseAmt", label: "Base Amount", value: baseAmtAlias, set: setBaseAmtAlias, required: true },
+                  { key: "invNum", label: "Invoice Number", value: invNumAlias, set: setInvNumAlias, required: false },
+                  { key: "partner", label: "Vendor / Customer Name", value: partnerAlias, set: setPartnerAlias, required: false },
+                  { key: "invDate", label: "Invoice Date", value: invDateAlias, set: setInvDateAlias, required: false },
+                  { key: "pin", label: "PIN", value: pinAlias, set: setPinAlias, required: false },
+                  { key: "taxAmt", label: "Tax Amount", value: taxAmtAlias, set: setTaxAmtAlias, required: false },
+                ].map(({ key, label, value, set, required }) => (
                   <div key={key} onFocus={() => setActiveAliasField(key)}>
-                    <label className="flex items-center justify-between font-semibold text-slate-700 mb-1 text-[11px]">
-                      <span>{label}{required && " *"}</span>
-                      {activeAliasField === key && <span className="text-[10px] text-blue-600">Active</span>}
+                    <label className="block font-semibold text-slate-700 mb-1 text-[11px]">
+                      {label} {required && <span className="text-rose-500 font-bold">*</span>}
                     </label>
-                    <input type="text" value={value} onChange={(e) => set(e.target.value)}
-                      placeholder="Comma-separated aliases"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 text-[11px] font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+                    {detectedHeaders.length > 0 ? (
+                      <select
+                        value={value.split(",")[0]?.trim() || ""}
+                        onChange={(e) => set(e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
+                      >
+                        <option value="">{required ? "-- Select Column --" : "-- Unmapped --"}</option>
+                        {detectedHeaders.map((h) => (
+                          <option key={h} value={h}>{h}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input type="text" value={value} onChange={(e) => set(e.target.value)}
+                        placeholder={required ? "Required column header" : "Optional column header"}
+                        className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-900 text-[11px] font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+                    )}
                   </div>
                 ))}
               </div>
@@ -421,8 +416,8 @@ function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditM
                   <div className="w-9 h-5 bg-slate-300 peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
                 </label>
                 <div>
-                  <span className="font-semibold text-slate-700 text-xs">Auto-derive VAT from Tax Amount</span>
-                  <p className="text-[10px] text-slate-400">When VAT Group column is empty, compute rate from Tax Amount / Base Amount</p>
+                  <span className="font-semibold text-slate-700 text-xs">Auto-derive VAT rate from Tax Amount</span>
+                  <p className="text-[10px] text-slate-400">Calculate rate from (Tax Amount / Base Amount) when VAT column is empty</p>
                 </div>
               </div>
             </div>
