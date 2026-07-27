@@ -118,6 +118,35 @@ DEFAULT_BUILTIN_PROFILES = [
         "is_builtin": True,
         "is_default": False,
     },
+    {
+        "name": "Bill Details - Purchases",
+        "module": ReconciliationType.PURCHASES,
+        "provider": "CUSTOM",
+        "description": "XLSX bill details export with Bill Date, Bill#, Vendor Name, Amount Without Tax, Tax Amount, Bill Amount columns.",
+        "source_format": SourceFormat.XLSX,
+        "parsing_hints": ParsingHintsSchema(
+            has_header=True,
+            header_row=2,
+            data_start_row=3,
+            sheet_name="Bill Details",
+            date_format="DD Mon YYYY",
+        ).model_dump(),
+        "column_mapping": CanonicalColumnMappingSchema(
+            pin=[],
+            partner_name=["Vendor Name"],
+            invoice_number=["Bill#", "Bill No", "Bill Number"],
+            invoice_date=["Bill Date"],
+            cu_number=[],
+            vat_group=[],
+            base_amount=["Amount Without Tax", "Taxable Amount", "Base Amount"],
+        ).model_dump(),
+        "validation_rules": PurchasesValidationRulesSchema(
+            required_fields=["invoice_number", "base_amount"],
+            row_skip_policy="SKIP_EMPTY_AND_TOTALS",
+        ).model_dump(),
+        "is_builtin": True,
+        "is_default": False,
+    },
 ]
 
 

@@ -52,6 +52,8 @@ def parse_date_value(val: Any, date_format_hint: str) -> Optional[date]:
         "MM/DD/YYYY": "%m/%d/%Y",
         "DD-MM-YYYY": "%d-%m-%Y",
         "YYYY/MM/DD": "%Y/%m/%d",
+        "DD Mon YYYY": "%d %b %Y",
+        "DD-Mon-YYYY": "%d-%b-%Y",
     }
     primary_fmt = fmt_map.get(date_format_hint)
     if primary_fmt:
@@ -61,7 +63,7 @@ def parse_date_value(val: Any, date_format_hint: str) -> Optional[date]:
             pass
 
     # Fallback auto-parser
-    fallback_formats = ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%Y/%m/%d", "%d-%m-%Y", "%d.%m.%Y", "%Y.%m.%d"]
+    fallback_formats = ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%Y/%m/%d", "%d-%m-%Y", "%d.%m.%Y", "%Y.%m.%d", "%d %b %Y", "%d-%b-%Y"]
     for fmt in fallback_formats:
         try:
             return datetime.strptime(str_val, fmt).date()
@@ -189,6 +191,9 @@ class ERPImportService:
                 if not raw_pin and not raw_inv_num and parsed_amount is None:
                     continue
                 if "TOTAL" in raw_partner.upper() or "TOTAL" in raw_inv_num.upper():
+                    continue
+                raw_date_str = str(raw_date_val).strip().upper() if raw_date_val is not None else ""
+                if "TOTAL" in raw_date_str:
                     continue
 
             # Validation checks
