@@ -82,18 +82,14 @@ export default function SettingsPage() {
     }
   }, []);
 
-  // Initial Bootstrap: fetch User profile & Companies list
+  // Initial Bootstrap: fetch User profile and, if Admin, companies list
   useEffect(() => {
     let isMounted = true;
     async function init() {
       try {
-        const [meRes, companyRes] = await Promise.all([
-          fetchWithAuth("/auth/me"),
-          fetchWithAuth("/company/all"),
-        ]);
+        const meRes = await fetchWithAuth("/auth/me");
 
         let userCompId: number | null = null;
-        let userRole = "checker";
         let isAdminFlag = false;
 
         if (meRes.ok) {
@@ -101,17 +97,19 @@ export default function SettingsPage() {
           if (isMounted) {
             setCurrentUserId(me.id);
             setCurrentUserRole(me.role);
-            userRole = me.role;
             userCompId = me.company_id ?? null;
-            isAdminFlag = me.company_id === null;
+            isAdminFlag = me.role === "admin";
             setIsPlatformAdmin(isAdminFlag);
           }
         }
 
         let fetchedCompanies: CompanyProfile[] = [];
-        if (companyRes.ok) {
-          fetchedCompanies = await companyRes.json();
-          if (isMounted) setCompanies(fetchedCompanies);
+        if (isAdminFlag) {
+          const companyRes = await fetchWithAuth("/company/all");
+          if (companyRes.ok) {
+            fetchedCompanies = await companyRes.json();
+            if (isMounted) setCompanies(fetchedCompanies);
+          }
         }
 
         // Determine target company id
@@ -143,6 +141,7 @@ export default function SettingsPage() {
   };
 
   const loadCompanyData = useCallback(async () => {
+    if (currentUserRole !== "admin") return;
     try {
       const [companyRes, usersRes] = await Promise.all([
         fetchWithAuth("/company/all"),
@@ -153,17 +152,17 @@ export default function SettingsPage() {
     } catch {
       // non-critical — tab will show loading state
     }
-  }, []);
+  }, [currentUserRole]);
 
   // Reload company list when company tab is opened or company updated
   useEffect(() => {
-    if (activeTab === "company-profile" || activeTab === "users") {
+    if (currentUserRole === "admin" && (activeTab === "company-profile" || activeTab === "users")) {
       const timer = setTimeout(() => {
         loadCompanyData();
       }, 0);
       return () => clearTimeout(timer);
     }
-  }, [activeTab, loadCompanyData]);
+  }, [activeTab, currentUserRole, loadCompanyData]);
 
   const handleCompanySaved = useCallback(() => {
     loadCompanyData();
@@ -261,7 +260,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Target Entity Switcher for Admins */}
-        {isPlatformAdmin && companies.length > 0 && (
+        {isAdmin && companies.length > 0 && (
           <div className="flex items-center gap-2.5 bg-white border border-slate-200 p-2 rounded-xl shadow-xs">
             <div className="p-1.5 bg-slate-100 rounded-lg">
               <Building2 className="w-4 h-4 text-slate-600" />

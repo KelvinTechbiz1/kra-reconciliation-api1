@@ -18,13 +18,15 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 def _resolve_list_scope(
     current_user: User = Depends(get_current_user),
-    company_id: Optional[int] = Query(None, description="Filter by company (platform admin only)"),
+    company_id: Optional[int] = Query(None, description="Filter by company (admin only)"),
 ) -> Optional[int]:
-    """Platform admins may list any company's users or all users; company users
-    are restricted to their own company and ignore the filter."""
-    if current_user.company_id is None:
-        return company_id
-    return current_user.company_id
+    """Admin users may list any company's users or filter by company."""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator privileges required to manage users.",
+        )
+    return company_id if current_user.company_id is None else current_user.company_id
 
 
 @router.get("", response_model=List[UserResponse])
@@ -33,7 +35,7 @@ def list_users(
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    """List users. Platform admins see all (optionally filtered); company users see their company only."""
+    """List users. Admin only."""
     return user_service.list_users(db, company_id=scope_company_id)
 
 

@@ -67,11 +67,11 @@ def get_current_active_user(current_user: User = Depends(get_current_user)) -> U
 
 
 def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
-    """Platform admin: role 'admin' and not bound to a single company."""
-    if current_user.role != "admin" or current_user.company_id is not None:
+    """Admin (SaaS Owner) role check."""
+    if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Platform administrator privileges required",
+            detail="Administrator privileges required",
         )
     return current_user
 
@@ -80,7 +80,7 @@ def get_current_company(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> "Company":
-    """Resolve the company a user belongs to. Platform admins without a company
+    """Resolve the company a user belongs to. Admins without a specific company
     are associated with the primary company (first created)."""
     from app.models.company import Company
 
@@ -103,12 +103,11 @@ def get_current_company(
 
 
 def require_platform_admin(current_user: User = Depends(get_current_user)) -> User:
-    """Platform admin: manages all companies and users. Must not be tied to a
-    single company so it can operate across tenants."""
-    if current_user.role != "admin" or current_user.company_id is not None:
+    """Admin (SaaS Owner) role check."""
+    if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Platform administrator privileges required.",
+            detail="Administrator privileges required.",
         )
     return current_user
 

@@ -52,7 +52,7 @@ def init_db():
                 db.commit()
                 db.refresh(company)
 
-            # 2. Platform Admin User (Not tied to single company)
+            # 2. SaaS Admin User
             admin_user = os.getenv("INITIAL_ADMIN_USER", "admin")
             admin_pass = os.getenv("INITIAL_ADMIN_PASSWORD", "Admin123!")
             admin_email = os.getenv("INITIAL_ADMIN_EMAIL", "admin@example.com")
@@ -63,26 +63,26 @@ def init_db():
                 password_hash=hash_password(admin_pass),
                 is_active=True,
                 role="admin",
-                company_id=None
+                company_id=None,
             )
             db.add(admin)
 
-            # 3. Platform Admin User (Test)
-            company_user = User(
-                username="admin_tester",
+            # 3. Tool User (Checker)
+            checker_user = User(
+                username="checker_user",
                 email="checker@example.com",
                 password_hash=hash_password("securepass123"),
                 is_active=True,
-                role="admin",
-                company_id=None
+                role="checker",
+                company_id=company.id,
             )
-            db.add(company_user)
+            db.add(checker_user)
 
             db.commit()
             logger.info("=======================================================")
             logger.info("INITIAL DATABASE SETUP COMPLETE!")
-            logger.info(f" Platform Admin  : username='{admin_user}' | password='{admin_pass}'")
-            logger.info(f" Platform Admin  : username='admin_tester' | password='securepass123'")
+            logger.info(f" SaaS Admin  : username='{admin_user}' | password='{admin_pass}'")
+            logger.info(f" Tool User   : username='checker_user' | password='securepass123'")
             logger.info("=======================================================")
         else:
             logger.info(f"Database already initialized with {user_count} user(s).")
