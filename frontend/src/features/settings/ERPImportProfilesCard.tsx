@@ -187,9 +187,66 @@ function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditM
     if (!sampleFile) { notify("Please upload a sample file first.", "error"); return; }
     setPreviewing(true);
     try {
+      const formatSingleHeader = (s: string) => {
+        const trimmed = s.trim();
+        return trimmed ? [trimmed] : [];
+      };
+
+      const draftSnapshot = {
+        id: profileToEdit?.id || 0,
+        scope: profileToEdit?.scope || "company",
+        name: formName.trim() || "Draft Profile",
+        module: formModule,
+        provider: formProvider.trim().toUpperCase() || "CUSTOM",
+        source_format: formFormat,
+        parsing_hints: {
+          has_header: true,
+          header_row: Number(headerRow),
+          data_start_row: Number(dataStartRow),
+          delimiter: delimiter || ",",
+          date_format: dateFormat || "YYYY-MM-DD",
+          decimal_separator: ".",
+          thousands_separator: ",",
+        },
+        column_mapping: {
+          pin: formatSingleHeader(pinAlias),
+          partner_name: formatSingleHeader(partnerAlias),
+          invoice_number: formatSingleHeader(invNumAlias),
+          invoice_date: formatSingleHeader(invDateAlias),
+          cu_number: formatSingleHeader(cuNumAlias),
+          vat_group: formatSingleHeader(vatGroupAlias),
+          base_amount: formatSingleHeader(baseAmtAlias),
+          tax_amount: formatSingleHeader(taxAmtAlias),
+        },
+        validation_rules:
+          formModule === "sales"
+            ? {
+                module: "sales",
+                required_fields: ["cu_number", "vat_group", "base_amount"],
+                allowed_vat_codes: ["16", "8", "0", "EXEMPT"],
+                date_strictness: "LENIENT",
+                row_skip_policy: "SKIP_EMPTY_AND_TOTALS",
+                default_vat_group: "16",
+                require_valid_pin_format: true,
+                vat_derivation_enabled: vatDerivationEnabled,
+              }
+            : {
+                module: "purchases",
+                required_fields: ["cu_number", "vat_group", "base_amount"],
+                allowed_vat_codes: ["16", "8", "0", "EXEMPT"],
+                date_strictness: "LENIENT",
+                row_skip_policy: "SKIP_EMPTY_AND_TOTALS",
+                default_vat_group: "16",
+                vat_derivation_enabled: vatDerivationEnabled,
+              },
+      };
+
       const formData = new FormData();
       formData.append("file", sampleFile);
-      const res = await fetchWithAuth(`/import-profiles/preview?module=${formModule}`, { method: "POST", body: formData });
+      formData.append("draft_profile", JSON.stringify(draftSnapshot));
+
+      const profileParam = profileToEdit?.id ? `&profile_id=${profileToEdit.id}` : "";
+      const res = await fetchWithAuth(`/import-profiles/preview?module=${formModule}${profileParam}`, { method: "POST", body: formData });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail || "Preview failed."); }
       const data: MappingPreviewResponse = await res.json();
       setPreviewData(data);

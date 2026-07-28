@@ -56,7 +56,7 @@ TypedValidationRules = Union[SalesValidationRulesSchema, PurchasesValidationRule
 
 class ImportProfileSnapshot(BaseModel):
     profile_id: Optional[int] = None
-    profile_name: str
+    profile_name: str = "Draft Profile"
     profile_version: int = 1
     module: ReconciliationType
     provider: str

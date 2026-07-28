@@ -48,13 +48,14 @@ DEFAULT_BUILTIN_PROFILES = [
         "column_mapping": CanonicalColumnMappingSchema(
             pin=["Vendor PIN", "Supplier PIN", "GST/VAT PIN", "Tax Number"],
             partner_name=["Vendor Name", "Supplier Name", "Vendor", "Supplier"],
-            invoice_number=["Bill Number", "Bill No", "Invoice Number", "Invoice No"],
+            invoice_number=["Bill Number", "Bill No", "Bill#", "Invoice Number", "Invoice No"],
             invoice_date=["Bill Date", "Invoice Date", "Date"],
-            cu_number=["CU Number", "ETR Number", "Control Unit No"],
+            cu_number=["CU Number", "ETR Number", "Control Unit No", "Bill#", "Bill Number"],
             vat_group=["Tax Rate", "VAT Code", "VAT Group"],
-            base_amount=["SubTotal", "Taxable Amount", "Base Amount", "Amount"],
+            base_amount=["SubTotal", "Taxable Amount", "Base Amount", "Amount", "Amount Without Tax"],
+            tax_amount=["Tax Amount", "VAT Amount", "Tax"],
         ).model_dump(),
-        "validation_rules": PurchasesValidationRulesSchema().model_dump(),
+        "validation_rules": PurchasesValidationRulesSchema(vat_derivation_enabled=True).model_dump(),
         "is_builtin": True,
         "is_default": True,
     },
@@ -106,15 +107,16 @@ DEFAULT_BUILTIN_PROFILES = [
         "source_format": SourceFormat.CSV,
         "parsing_hints": ParsingHintsSchema(has_header=True, header_row=1, data_start_row=2, delimiter=",").model_dump(),
         "column_mapping": CanonicalColumnMappingSchema(
-            pin=["Supplier PIN", "PIN"],
-            partner_name=["Supplier Name", "Supplier"],
-            invoice_number=["Invoice Number", "Invoice No"],
-            invoice_date=["Invoice Date", "Date"],
-            cu_number=["CU Number", "ETR Number"],
-            vat_group=["VAT Group", "Tax Rate"],
-            base_amount=["Base Amount", "Taxable Amount"],
+            pin=["Supplier PIN", "Vendor PIN", "PIN"],
+            partner_name=["Supplier Name", "Vendor Name", "Supplier", "Vendor"],
+            invoice_number=["Invoice Number", "Invoice No", "Bill#", "Bill Number"],
+            invoice_date=["Invoice Date", "Bill Date", "Date"],
+            cu_number=["CU Number", "ETR Number", "Bill#", "Bill Number"],
+            vat_group=["VAT Group", "Tax Rate", "Tax Rate / Group"],
+            base_amount=["Base Amount", "Taxable Amount", "Amount Without Tax", "Amount"],
+            tax_amount=["Tax Amount", "VAT Amount"],
         ).model_dump(),
-        "validation_rules": PurchasesValidationRulesSchema().model_dump(),
+        "validation_rules": PurchasesValidationRulesSchema(vat_derivation_enabled=True).model_dump(),
         "is_builtin": True,
         "is_default": False,
     },
@@ -178,7 +180,11 @@ class ERPProfileService:
                 ImportProfile.module == item["module"],
                 ImportProfile.name == item["name"],
             ).first()
-            if not existing:
+            if existing:
+                existing.column_mapping = item["column_mapping"]
+                existing.parsing_hints = item["parsing_hints"]
+                existing.validation_rules = item["validation_rules"]
+            else:
                 # Only set default if no default exists yet for this module
                 should_default = item["is_default"] and item["module"] not in modules_with_default
                 if should_default:

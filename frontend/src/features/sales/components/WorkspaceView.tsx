@@ -184,7 +184,7 @@ export function WorkspaceView({
               onClick={() => setErpSourceMode("sap")}
               className={`flex-1 py-1 rounded-md transition-colors ${erpSourceMode === "sap" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"}`}
             >
-              SAP Live API
+              SAP Live
             </button>
             <button
               type="button"

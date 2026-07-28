@@ -1,5 +1,5 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user, get_db
@@ -8,6 +8,7 @@ from app.schemas.import_profile import (
     HeaderDetectionResponse,
     ImportProfileCreate,
     ImportProfileResponse,
+    ImportProfileSnapshot,
     ImportProfileUpdate,
     MappingPreviewRequest,
     MappingPreviewResponse,
@@ -146,13 +147,25 @@ def set_default_import_profile(
 async def preview_import_profile_mapping(
     file: UploadFile = File(...),
     module: ReconciliationType = Query(..., description="Target module (sales or purchases)"),
+    profile_id: Optional[int] = Query(None, description="Optional explicit profile ID to preview against"),
+    draft_profile: Optional[str] = Form(None, description="Optional JSON string of draft profile snapshot"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Dry-run preview of parsing a sample file against active or default profile mapping."""
-    company_id = _get_company_id(current_user, db)
-    profile = ERPProfileService.resolve_profile_for_import(db, company_id, module)
-    snapshot = ERPProfileService.create_snapshot(profile)
+    """Dry-run preview of parsing a sample file against active, default, or draft profile mapping."""
+    if draft_profile:
+        import json
+        try:
+            draft_dict = json.loads(draft_profile)
+            if "name" in draft_dict and "profile_name" not in draft_dict:
+                draft_dict["profile_name"] = draft_dict["name"]
+            snapshot = ImportProfileSnapshot(**draft_dict)
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid draft profile JSON: {str(e)}")
+    else:
+        company_id = _get_company_id(current_user, db)
+        profile = ERPProfileService.resolve_profile_for_import(db, company_id, module, explicit_profile_id=profile_id)
+        snapshot = ERPProfileService.create_snapshot(profile)
 
     file_bytes = await file.read()
     filename = file.filename or "sample_file.csv"

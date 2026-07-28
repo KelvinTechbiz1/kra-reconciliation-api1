@@ -189,6 +189,15 @@ class ERPImportService:
         if header_idx >= len(df_raw):
             raise ValueError(f"Header row index {hints.header_row} exceeds file row count ({len(df_raw)}).")
 
+        raw_row_vals = [str(val).strip() if pd.notna(val) else "" for val in df_raw.iloc[header_idx]]
+        unnamed_count = sum(1 for h in raw_row_vals if not h or h.startswith("Unnamed:") or h.startswith("Column_"))
+
+        # Smart fallback: If configured header row is mostly empty/unnamed (e.g. title row), auto-detect real header row
+        if unnamed_count >= max(1, len(raw_row_vals) - 1):
+            detected = cls.detect_headers(file_bytes, filename)
+            if detected.confidence in ("high", "medium") and detected.header_row != hints.header_row:
+                header_idx = max(0, detected.header_row - 1)
+
         headers = [str(val).strip() if pd.notna(val) else f"Column_{i+1}" for i, val in enumerate(df_raw.iloc[header_idx])]
         data_start_idx = max(header_idx + 1, hints.data_start_row - 1)
 
@@ -310,11 +319,11 @@ class ERPImportService:
         col_vat_group = match_column_name(headers, mapping.vat_group)
         col_base_amt = match_column_name(headers, mapping.base_amount)
 
-        if not col_cu_num:
+        if not col_cu_num and "cu_number" in rules.required_fields:
             general_errors.append("Could not auto-match CU Number column header.")
-        if not col_vat_group:
+        if not col_vat_group and "vat_group" in rules.required_fields and not rules.vat_derivation_enabled:
             general_errors.append("Could not auto-match VAT Group column header.")
-        if not col_base_amt:
+        if not col_base_amt and "base_amount" in rules.required_fields:
             general_errors.append("Could not auto-match Base Amount column header.")
 
         preview_samples: List[PreviewRowSample] = []
@@ -360,10 +369,27 @@ class ERPImportService:
 
         is_valid = len(general_errors) == 0 and all(len(s.validation_errors) == 0 for s in preview_samples)
 
+        total_rows_count = 0
+        for _, row in df_data.iterrows():
+            if rules.row_skip_policy == "SKIP_EMPTY_AND_TOTALS":
+                raw_pin = str(row[col_pin]).strip() if col_pin and pd.notna(row[col_pin]) else ""
+                raw_partner = str(row[col_partner]).strip() if col_partner and pd.notna(row[col_partner]) else ""
+                raw_inv_num = str(row[col_inv_num]).strip() if col_inv_num and pd.notna(row[col_inv_num]) else ""
+                raw_base_val = row[col_base_amt] if col_base_amt and pd.notna(row[col_base_amt]) else None
+                parsed_amount = parse_numeric_amount(raw_base_val, hints.decimal_separator, hints.thousands_separator)
+                raw_date_val = row[col_inv_date] if col_inv_date and pd.notna(row[col_inv_date]) else None
+                raw_date_str = str(raw_date_val).strip().upper() if raw_date_val is not None else ""
+
+                if not raw_pin and not raw_inv_num and parsed_amount is None:
+                    continue
+                if "TOTAL" in raw_partner.upper() or "TOTAL" in raw_inv_num.upper() or "TOTAL" in raw_date_str:
+                    continue
+            total_rows_count += 1
+
         return MappingPreviewResponse(
             filename=filename,
             detected_headers=headers,
-            total_rows_detected=len(df_data),
+            total_rows_detected=total_rows_count,
             preview_samples=preview_samples,
             is_valid=is_valid,
             general_errors=general_errors,
@@ -404,13 +430,13 @@ class ERPImportService:
 
         # Keywords that indicate a header row for ERP import files
         _HEADER_KEYWORDS = {
-            "cu_number": {"cu", "control unit", "etr", "serial", "cu number", "etr number", "cu no", "cu serial", "control unit no"},
-            "vat_group": {"vat", "tax rate", "tax type", "vat group", "vat code", "tax code", "rate"},
-            "base_amount": {"amount", "base", "taxable", "subtotal", "total", "value", "base amount", "taxable amount", "total amount", "net"},
-            "pin": {"pin", "kra", "tax number", "customer pin", "supplier pin"},
-            "invoice_number": {"invoice", "docnum", "receipt", "doc num", "inv no", "invoice number", "invoice no", "receipt no"},
-            "invoice_date": {"date", "invoice date", "doc date", "transaction date"},
-            "partner_name": {"name", "customer", "supplier", "vendor", "client", "partner", "customer name", "supplier name"},
+            "cu_number": {"cu", "control unit", "etr", "serial", "cu number", "etr number", "cu no", "cu serial", "control unit no", "bill#", "bill"},
+            "vat_group": {"vat", "tax rate", "tax type", "vat group", "vat code", "tax code", "rate", "vat rate / group"},
+            "base_amount": {"amount", "base", "taxable", "subtotal", "total", "value", "base amount", "taxable amount", "total amount", "net", "amount without tax"},
+            "pin": {"pin", "kra", "tax number", "customer pin", "supplier pin", "vendor pin"},
+            "invoice_number": {"invoice", "docnum", "receipt", "doc num", "inv no", "invoice number", "invoice no", "receipt no", "bill#", "bill"},
+            "invoice_date": {"date", "invoice date", "doc date", "transaction date", "bill date"},
+            "partner_name": {"name", "customer", "supplier", "vendor", "client", "partner", "customer name", "supplier name", "vendor name"},
             "tax_amount": {"tax amount", "vat amount", "tax amt", "vat amt"},
         }
 
