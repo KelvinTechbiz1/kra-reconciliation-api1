@@ -254,7 +254,7 @@ class ERPProfileService:
         existing = db.query(ImportProfile).filter(
             ImportProfile.company_id == company_id,
             ImportProfile.module == payload.module,
-            ImportProfile.name == payload.name.strip(),
+            ImportProfile.name.ilike(payload.name.strip()),
             ImportProfile.is_active == True,
         ).first()
         if existing:
@@ -289,7 +289,6 @@ class ERPProfileService:
 
     @classmethod
     def update_profile(
-
         cls, db: Session, profile_id: int, company_id: Optional[int], payload: ImportProfileUpdate
     ) -> ImportProfile:
         profile = db.query(ImportProfile).filter(
@@ -305,17 +304,36 @@ class ERPProfileService:
 
         target_company_id = profile.company_id or company_id
 
+        # Determine effective module: payload overrides, else keep existing
+        effective_module = payload.module if payload.module is not None else profile.module
+
         if payload.name and payload.name.strip() != profile.name:
             dup = db.query(ImportProfile).filter(
                 ImportProfile.company_id == target_company_id,
-                ImportProfile.module == profile.module,
-                ImportProfile.name == payload.name.strip(),
+                ImportProfile.module == effective_module,
+                ImportProfile.name.ilike(payload.name.strip()),
                 ImportProfile.id != profile_id,
                 ImportProfile.is_active == True,
             ).first()
             if dup:
                 raise ValueError(f"An import profile named '{payload.name}' already exists.")
             profile.name = payload.name.strip()
+
+        if payload.module is not None and payload.module != profile.module:
+            # Re-check duplicate with new module and same name
+            effective_name = payload.name.strip() if payload.name and payload.name.strip() else profile.name
+            dup = db.query(ImportProfile).filter(
+                ImportProfile.company_id == target_company_id,
+                ImportProfile.module == payload.module,
+                ImportProfile.name.ilike(effective_name),
+                ImportProfile.id != profile_id,
+                ImportProfile.is_active == True,
+            ).first()
+            if dup:
+                raise ValueError(f"An import profile named '{effective_name}' already exists for {payload.module.value}.")
+            profile.module = payload.module
+            # Clear previous default status on old module
+            profile.is_default = False
 
         if payload.provider is not None:
             profile.provider = payload.provider.strip().upper()
@@ -333,7 +351,7 @@ class ERPProfileService:
         if payload.is_default is True:
             db.query(ImportProfile).filter(
                 ImportProfile.company_id == target_company_id,
-                ImportProfile.module == profile.module,
+                ImportProfile.module == effective_module,
                 ImportProfile.id != profile_id,
             ).update({"is_default": False}, synchronize_session=False)
             profile.is_default = True
@@ -403,7 +421,7 @@ class ERPProfileService:
         dup = db.query(ImportProfile).filter(
             ImportProfile.company_id == company_id,
             ImportProfile.module == source.module,
-            ImportProfile.name == target_name,
+            ImportProfile.name.ilike(target_name),
             ImportProfile.is_active == True,
         ).first()
         if dup:

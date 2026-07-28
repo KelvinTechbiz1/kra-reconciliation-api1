@@ -81,6 +81,7 @@ class ImportProfileCreate(BaseModel):
 
 class ImportProfileUpdate(BaseModel):
     name: Optional[str] = Field(default=None, max_length=100)
+    module: Optional[ReconciliationType] = None
     provider: Optional[str] = Field(default=None, max_length=50)
     description: Optional[str] = None
     source_format: Optional[SourceFormat] = None

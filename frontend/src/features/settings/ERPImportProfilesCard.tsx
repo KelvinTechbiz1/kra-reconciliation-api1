@@ -109,22 +109,30 @@ function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditM
   const [formFormat, setFormFormat] = useState<SourceFormat>(profileToEdit?.source_format || "csv");
   const [isDefault, setIsDefault] = useState(profileToEdit?.is_default || false);
 
-  // Helper to extract 1 clean single header name for UI
-  const getSingleAlias = (val: string[] | string | undefined): string => {
+  // Helper to extract aliases for UI display and editing
+  // Returns comma-separated string of all aliases for the text input
+  const getAliasesString = (val: string[] | string | undefined): string => {
     if (!val) return "";
-    if (Array.isArray(val)) return val[0] || "";
+    if (Array.isArray(val)) return val.join(", ");
     return String(val);
   };
 
+  // Helper to parse comma-separated alias string back to array
+  const parseAliasesArray = (s: string): string[] => {
+    const trimmed = s.trim();
+    if (!trimmed) return [];
+    return trimmed.split(",").map(a => a.trim()).filter(a => a.length > 0);
+  };
+
   // Column Mappings
-  const [pinAlias, setPinAlias] = useState(getSingleAlias(profileToEdit?.column_mapping.pin));
-  const [partnerAlias, setPartnerAlias] = useState(getSingleAlias(profileToEdit?.column_mapping.partner_name));
-  const [invNumAlias, setInvNumAlias] = useState(getSingleAlias(profileToEdit?.column_mapping.invoice_number));
-  const [invDateAlias, setInvDateAlias] = useState(getSingleAlias(profileToEdit?.column_mapping.invoice_date));
-  const [cuNumAlias, setCuNumAlias] = useState(getSingleAlias(profileToEdit?.column_mapping.cu_number));
-  const [vatGroupAlias, setVatGroupAlias] = useState(getSingleAlias(profileToEdit?.column_mapping.vat_group));
-  const [baseAmtAlias, setBaseAmtAlias] = useState(getSingleAlias(profileToEdit?.column_mapping.base_amount));
-  const [taxAmtAlias, setTaxAmtAlias] = useState(getSingleAlias(profileToEdit?.column_mapping.tax_amount));
+  const [pinAlias, setPinAlias] = useState(getAliasesString(profileToEdit?.column_mapping.pin));
+  const [partnerAlias, setPartnerAlias] = useState(getAliasesString(profileToEdit?.column_mapping.partner_name));
+  const [invNumAlias, setInvNumAlias] = useState(getAliasesString(profileToEdit?.column_mapping.invoice_number));
+  const [invDateAlias, setInvDateAlias] = useState(getAliasesString(profileToEdit?.column_mapping.invoice_date));
+  const [cuNumAlias, setCuNumAlias] = useState(getAliasesString(profileToEdit?.column_mapping.cu_number));
+  const [vatGroupAlias, setVatGroupAlias] = useState(getAliasesString(profileToEdit?.column_mapping.vat_group));
+  const [baseAmtAlias, setBaseAmtAlias] = useState(getAliasesString(profileToEdit?.column_mapping.base_amount));
+  const [taxAmtAlias, setTaxAmtAlias] = useState(getAliasesString(profileToEdit?.column_mapping.tax_amount));
   const [vatDerivationEnabled, setVatDerivationEnabled] = useState(profileToEdit?.validation_rules.vat_derivation_enabled || false);
 
   // Active Focused Alias Input
@@ -183,15 +191,49 @@ function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditM
     updaters[activeAliasField]?.(headerName);
   };
 
+  const buildColumnMapping = () => {
+    const formatAliases = (s: string) => parseAliasesArray(s);
+    return {
+      pin: formatAliases(pinAlias),
+      partner_name: formatAliases(partnerAlias),
+      invoice_number: formatAliases(invNumAlias),
+      invoice_date: formatAliases(invDateAlias),
+      cu_number: formatAliases(cuNumAlias),
+      vat_group: formatAliases(vatGroupAlias),
+      base_amount: formatAliases(baseAmtAlias),
+      tax_amount: formatAliases(taxAmtAlias),
+    };
+  };
+
+  const buildValidationRules = () => {
+    const existingRules = profileToEdit?.validation_rules;
+    const baseSales = {
+      module: "sales" as const,
+      required_fields: existingRules?.module === "sales" ? (existingRules.required_fields ?? []) : ["cu_number", "vat_group", "base_amount"],
+      allowed_vat_codes: existingRules?.module === "sales" ? (existingRules.allowed_vat_codes ?? ["16", "8", "0", "EXEMPT"]) : ["16", "8", "0", "EXEMPT"],
+      date_strictness: (existingRules?.module === "sales" ? existingRules.date_strictness : "LENIENT") as "STRICT" | "LENIENT",
+      row_skip_policy: (existingRules?.module === "sales" ? existingRules.row_skip_policy : "SKIP_EMPTY_AND_TOTALS") as "SKIP_EMPTY_AND_TOTALS" | "FAIL_ON_EMPTY",
+      default_vat_group: existingRules?.module === "sales" ? (existingRules.default_vat_group ?? "16") : "16",
+      require_valid_pin_format: existingRules?.module === "sales" ? (existingRules.require_valid_pin_format ?? true) : true,
+      vat_derivation_enabled: vatDerivationEnabled,
+    };
+    const basePurchases = {
+      module: "purchases" as const,
+      required_fields: existingRules?.module === "purchases" ? (existingRules.required_fields ?? []) : ["cu_number", "vat_group", "base_amount"],
+      allowed_vat_codes: existingRules?.module === "purchases" ? (existingRules.allowed_vat_codes ?? ["16", "8", "0", "EXEMPT"]) : ["16", "8", "0", "EXEMPT"],
+      date_strictness: (existingRules?.module === "purchases" ? existingRules.date_strictness : "LENIENT") as "STRICT" | "LENIENT",
+      row_skip_policy: (existingRules?.module === "purchases" ? existingRules.row_skip_policy : "SKIP_EMPTY_AND_TOTALS") as "SKIP_EMPTY_AND_TOTALS" | "FAIL_ON_EMPTY",
+      default_vat_group: existingRules?.module === "purchases" ? (existingRules.default_vat_group ?? "16") : "16",
+      purchase_cu_fallback_field: existingRules?.module === "purchases" ? existingRules.purchase_cu_fallback_field : undefined,
+      vat_derivation_enabled: vatDerivationEnabled,
+    };
+    return formModule === "sales" ? baseSales : basePurchases;
+  };
+
   const handleRunLivePreview = async () => {
     if (!sampleFile) { notify("Please upload a sample file first.", "error"); return; }
     setPreviewing(true);
     try {
-      const formatSingleHeader = (s: string) => {
-        const trimmed = s.trim();
-        return trimmed ? [trimmed] : [];
-      };
-
       const draftSnapshot = {
         id: profileToEdit?.id || 0,
         scope: profileToEdit?.scope || "company",
@@ -208,37 +250,8 @@ function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditM
           decimal_separator: ".",
           thousands_separator: ",",
         },
-        column_mapping: {
-          pin: formatSingleHeader(pinAlias),
-          partner_name: formatSingleHeader(partnerAlias),
-          invoice_number: formatSingleHeader(invNumAlias),
-          invoice_date: formatSingleHeader(invDateAlias),
-          cu_number: formatSingleHeader(cuNumAlias),
-          vat_group: formatSingleHeader(vatGroupAlias),
-          base_amount: formatSingleHeader(baseAmtAlias),
-          tax_amount: formatSingleHeader(taxAmtAlias),
-        },
-        validation_rules:
-          formModule === "sales"
-            ? {
-                module: "sales",
-                required_fields: ["cu_number", "vat_group", "base_amount"],
-                allowed_vat_codes: ["16", "8", "0", "EXEMPT"],
-                date_strictness: "LENIENT",
-                row_skip_policy: "SKIP_EMPTY_AND_TOTALS",
-                default_vat_group: "16",
-                require_valid_pin_format: true,
-                vat_derivation_enabled: vatDerivationEnabled,
-              }
-            : {
-                module: "purchases",
-                required_fields: ["cu_number", "vat_group", "base_amount"],
-                allowed_vat_codes: ["16", "8", "0", "EXEMPT"],
-                date_strictness: "LENIENT",
-                row_skip_policy: "SKIP_EMPTY_AND_TOTALS",
-                default_vat_group: "16",
-                vat_derivation_enabled: vatDerivationEnabled,
-              },
+        column_mapping: buildColumnMapping(),
+        validation_rules: buildValidationRules(),
       };
 
       const formData = new FormData();
@@ -261,10 +274,6 @@ function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditM
     e.preventDefault();
     if (!formName.trim()) { notify("Profile name is required.", "error"); return; }
     setSaving(true);
-    const formatSingleHeader = (s: string) => {
-      const trimmed = s.trim();
-      return trimmed ? [trimmed] : [];
-    };
 
     const payload: ImportProfileCreate = {
       name: formName.trim(),
@@ -281,37 +290,8 @@ function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditM
         decimal_separator: ".",
         thousands_separator: ",",
       },
-      column_mapping: {
-        pin: formatSingleHeader(pinAlias),
-        partner_name: formatSingleHeader(partnerAlias),
-        invoice_number: formatSingleHeader(invNumAlias),
-        invoice_date: formatSingleHeader(invDateAlias),
-        cu_number: formatSingleHeader(cuNumAlias),
-        vat_group: formatSingleHeader(vatGroupAlias),
-        base_amount: formatSingleHeader(baseAmtAlias),
-        tax_amount: formatSingleHeader(taxAmtAlias),
-      },
-      validation_rules:
-        formModule === "sales"
-          ? {
-              module: "sales",
-              required_fields: ["cu_number", "vat_group", "base_amount"],
-              allowed_vat_codes: ["16", "8", "0", "EXEMPT"],
-              date_strictness: "LENIENT",
-              row_skip_policy: "SKIP_EMPTY_AND_TOTALS",
-              default_vat_group: "16",
-              require_valid_pin_format: true,
-              vat_derivation_enabled: vatDerivationEnabled,
-            }
-          : {
-              module: "purchases",
-              required_fields: ["cu_number", "vat_group", "base_amount"],
-              allowed_vat_codes: ["16", "8", "0", "EXEMPT"],
-              date_strictness: "LENIENT",
-              row_skip_policy: "SKIP_EMPTY_AND_TOTALS",
-              default_vat_group: "16",
-              vat_derivation_enabled: vatDerivationEnabled,
-            },
+      column_mapping: buildColumnMapping(),
+      validation_rules: buildValidationRules(),
       is_default: isDefault,
     };
 
@@ -464,7 +444,7 @@ function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditM
                       </select>
                     ) : (
                       <input type="text" value={value} onChange={(e) => set(e.target.value)}
-                        placeholder={required ? "Required column header" : "Optional column header"}
+                        placeholder={required ? "Required (comma-separate for multiple)" : "Optional (comma-separate for multiple)"}
                         className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-900 text-[11px] font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
                     )}
                   </div>
@@ -665,13 +645,15 @@ function ViewImportProfileModal({ profile, onClose, onEdit }: ViewModalProps) {
             <h4 className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">Column Mapping</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono text-[11px]">
               {Object.entries(profile.column_mapping).map(([field, aliases]) => {
-                const headerVal = Array.isArray(aliases) ? (aliases[0] || "") : String(aliases || "");
+                const aliasList = Array.isArray(aliases) ? aliases.filter(a => a) : (aliases ? [String(aliases)] : []);
                 return (
                   <div key={field} className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
                     <div className="font-sans font-semibold text-slate-700 uppercase text-[10px] tracking-wider mb-1">{field.replace(/_/g, " ")}</div>
                     <div className="flex flex-wrap gap-1">
-                      {headerVal ? (
-                        <span className="px-2 py-0.5 bg-white border border-slate-300 rounded text-slate-800 text-[11px] font-semibold">{headerVal}</span>
+                      {aliasList.length > 0 ? (
+                        aliasList.map((a, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-white border border-slate-300 rounded text-slate-800 text-[11px] font-semibold">{a}</span>
+                        ))
                       ) : <span className="text-slate-400 font-sans italic text-[10px]">Unmapped</span>}
                     </div>
                   </div>
