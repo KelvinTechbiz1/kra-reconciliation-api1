@@ -258,7 +258,15 @@ def reconcile_invoices(
             pin_matches=pin_matches,
             differences=differences,
             sap_source_index=sap_norm.first_source_index,
-            kra_source_index=kra_norm.first_source_index
+            kra_source_index=kra_norm.first_source_index,
+            sap_base_16=sap_norm.base_16,
+            sap_base_8=sap_norm.base_8,
+            sap_base_0=sap_norm.base_0,
+            sap_base_exempt=sap_norm.base_exempt,
+            kra_base_16=kra_norm.base_16,
+            kra_base_8=kra_norm.base_8,
+            kra_base_0=kra_norm.base_0,
+            kra_base_exempt=kra_norm.base_exempt,
         ))
 
     # Stage 7: Unpaired SAP Invoices
@@ -278,7 +286,11 @@ def reconcile_invoices(
             pin_matches=False,
             differences=[],
             sap_source_index=sap_norm.first_source_index,
-            kra_source_index=None
+            kra_source_index=None,
+            sap_base_16=sap_norm.base_16,
+            sap_base_8=sap_norm.base_8,
+            sap_base_0=sap_norm.base_0,
+            sap_base_exempt=sap_norm.base_exempt,
         ))
 
     # Stage 7: Unpaired KRA Invoices
@@ -298,7 +310,11 @@ def reconcile_invoices(
             pin_matches=False,
             differences=[],
             sap_source_index=None,
-            kra_source_index=kra_norm.first_source_index
+            kra_source_index=kra_norm.first_source_index,
+            kra_base_16=kra_norm.base_16,
+            kra_base_8=kra_norm.base_8,
+            kra_base_0=kra_norm.base_0,
+            kra_base_exempt=kra_norm.base_exempt,
         ))
 
     # Calculate summary metrics

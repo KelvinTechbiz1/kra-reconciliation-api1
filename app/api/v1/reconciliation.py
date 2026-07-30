@@ -120,6 +120,10 @@ def compare_session_invoices(
                 sap_invoice_date=r.sap.invoice_date if r.sap else None,
                 sap_base_amount=r.sap.base_amount if r.sap else None,
                 sap_vat_group=r.sap.vat_group if r.sap else None,
+                sap_base_16=r.sap_base_16,
+                sap_base_8=r.sap_base_8,
+                sap_base_0=r.sap_base_0,
+                sap_base_exempt=r.sap_base_exempt,
                 
                 kra_invoice_number=r.kra.invoice_number if r.kra else None,
                 kra_partner_name=r.kra.partner_name if r.kra else None,
@@ -127,6 +131,10 @@ def compare_session_invoices(
                 kra_invoice_date=r.kra.invoice_date if r.kra else None,
                 kra_base_amount=r.kra.base_amount if r.kra else None,
                 kra_vat_group=r.kra.vat_group if r.kra else None,
+                kra_base_16=r.kra_base_16,
+                kra_base_8=r.kra_base_8,
+                kra_base_0=r.kra_base_0,
+                kra_base_exempt=r.kra_base_exempt,
             )
             for idx, r in enumerate(results)
         ]

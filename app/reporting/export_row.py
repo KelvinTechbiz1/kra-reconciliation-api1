@@ -30,24 +30,44 @@ class ReconciliationExportRow:
     sap_invoice_date:    date | None
     sap_base_amount:     Decimal | None
     sap_vat_group:       str | None
-    kra_invoice_number:  str | None
-    kra_partner_name:    str | None
-    kra_pin:             str | None
-    kra_invoice_date:    date | None
-    kra_base_amount:     Decimal | None
-    kra_vat_group:       str | None
+    sap_base_16:          Decimal | None = None
+    sap_base_8:           Decimal | None = None
+    sap_base_0:           Decimal | None = None
+    sap_base_exempt:      Decimal | None = None
+
+    kra_invoice_number:  str | None = None
+    kra_partner_name:    str | None = None
+    kra_pin:             str | None = None
+    kra_invoice_date:    date | None = None
+    kra_base_amount:     Decimal | None = None
+    kra_vat_group:       str | None = None
+    kra_base_16:          Decimal | None = None
+    kra_base_8:          Decimal | None = None
+    kra_base_0:          Decimal | None = None
+    kra_base_exempt:      Decimal | None = None
 
 
 def to_export_rows(projections: list[ReconciliationProjection]) -> list[ReconciliationExportRow]:
     """Explicit constructor — no reflection. Future field additions are compile-time errors."""
     rows: list[ReconciliationExportRow] = []
     for p in projections:
-        amt_sym = "✓" if p.amount_match else "✗"
-        if p.status == ReconciliationStatus.AMOUNT_MISMATCH:
+        # Unpaired / Missing rows have no counterpart to compare against, so match symbols are "—"
+        if p.status in (
+            ReconciliationStatus.MISSING_IN_SAP,
+            ReconciliationStatus.MISSING_IN_KRA,
+            ReconciliationStatus.MISSING_CU_NUMBER,
+            ReconciliationStatus.DUPLICATE_SOURCE_KEY,
+        ):
+            amt_sym = "—"
+            vat_sym = "—"
+        elif not p.amount_match:
+            amt_sym = "✗"
             vat_sym = "—"
         elif p.vat_match:
+            amt_sym = "✓"
             vat_sym = "✓"
         else:
+            amt_sym = "✓"
             vat_sym = "✗"
 
         inv_type_str = p.invoice_type.value if hasattr(p.invoice_type, "value") else str(p.invoice_type)
@@ -69,12 +89,20 @@ def to_export_rows(projections: list[ReconciliationProjection]) -> list[Reconcil
                 sap_invoice_date=p.sap_invoice_date,
                 sap_base_amount=p.sap_base_amount,
                 sap_vat_group=p.sap_vat_group,
+                sap_base_16=p.sap_base_16,
+                sap_base_8=p.sap_base_8,
+                sap_base_0=p.sap_base_0,
+                sap_base_exempt=p.sap_base_exempt,
                 kra_invoice_number=p.kra_invoice_number,
                 kra_partner_name=p.kra_partner_name,
                 kra_pin=p.kra_pin,
                 kra_invoice_date=p.kra_invoice_date,
                 kra_base_amount=p.kra_base_amount,
                 kra_vat_group=p.kra_vat_group,
+                kra_base_16=p.kra_base_16,
+                kra_base_8=p.kra_base_8,
+                kra_base_0=p.kra_base_0,
+                kra_base_exempt=p.kra_base_exempt,
             )
         )
     return rows

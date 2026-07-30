@@ -91,6 +91,10 @@ class SessionReconciliationResult(Base):
     sap_invoice_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     sap_base_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     sap_vat_group: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    sap_base_16: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    sap_base_8: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    sap_base_0: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    sap_base_exempt: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
 
     # Snapshot values for KRA
     kra_invoice_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -98,6 +102,10 @@ class SessionReconciliationResult(Base):
     kra_invoice_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     kra_base_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     kra_vat_group: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    kra_base_16: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    kra_base_8: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    kra_base_0: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    kra_base_exempt: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
 
     # PIN snapshot — populated at /compare time from session_invoices
     sap_pin: Mapped[str | None] = mapped_column(String(100), nullable=True)

@@ -30,6 +30,22 @@ class NormalizedInvoice:
         return len(self.tax_breakdown) > 1
 
     @property
+    def base_16(self) -> Decimal:
+        return self.tax_breakdown.get("16", Decimal("0.00"))
+
+    @property
+    def base_8(self) -> Decimal:
+        return self.tax_breakdown.get("8", Decimal("0.00"))
+
+    @property
+    def base_0(self) -> Decimal:
+        return self.tax_breakdown.get("0", Decimal("0.00"))
+
+    @property
+    def base_exempt(self) -> Decimal:
+        return self.tax_breakdown.get("EXEMPT", Decimal("0.00"))
+
+    @property
     def invoice_type(self) -> "InvoiceType":
         from app.domain.invoice_type import InvoiceType
         return InvoiceType.MIXED_TAX if self.is_mixed_tax else InvoiceType.SINGLE_TAX

@@ -1,4 +1,5 @@
 from enum import Enum
+from decimal import Decimal
 from pydantic import BaseModel
 from app.schemas.invoice import Invoice
 
@@ -33,6 +34,16 @@ class ReconciliationResult(BaseModel):
     differences: list[Difference]
     sap_source_index: int | None = None
     kra_source_index: int | None = None
+
+    sap_base_16: Decimal | None = None
+    sap_base_8: Decimal | None = None
+    sap_base_0: Decimal | None = None
+    sap_base_exempt: Decimal | None = None
+
+    kra_base_16: Decimal | None = None
+    kra_base_8: Decimal | None = None
+    kra_base_0: Decimal | None = None
+    kra_base_exempt: Decimal | None = None
 
 class MismatchStats(BaseModel):
     amount: int = 0
