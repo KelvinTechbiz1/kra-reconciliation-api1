@@ -92,7 +92,7 @@ def test_sap_client_get_invoices_pagination():
         raise ValueError(f"Unexpected URL: {url}")
 
     with patch.object(client, "_execute_request_with_retry", side_effect=mock_request) as mock_exec:
-        pages = list(client.get_documents_pages("2026-03-01", "2026-03-02", "Invoices"))
+        pages = list(client.get_documents_pages("2026-03-01", "2026-03-02", "Invoices", page_size=500))
         
         assert len(pages) == 2
         assert pages[0][0]["DocNum"] == 100
@@ -413,5 +413,89 @@ def test_sap_mapper_missing_both_tax_fields_raises_error():
     with pytest.raises(SAPQueryError) as exc_info:
         map_sap_document_to_canonical_rows(raw_doc, "Invoice", "Invoices", reconciliation_type="sales")
     assert "missing tax fields" in str(exc_info.value)
+
+
+def test_sap_client_clone_session_isolation():
+    client = SAPClient(
+        base_url="https://sap-test:50000/b1s/v1",
+        username="user1",
+        password="pass1",
+        company_db="db1",
+        verify_ssl=False,
+    )
+    client.session_id = "original-session-999"
+    client.cookies = {"B1SESSION": "original-session-999"}
+    client.session_expiry = datetime.datetime.now() + datetime.timedelta(minutes=10)
+
+    cloned = client.clone()
+
+    # Connection configuration must match
+    assert cloned.base_url == client.base_url
+    assert cloned.username == client.username
+    assert cloned.password == client.password
+    assert cloned.company_db == client.company_db
+    assert cloned.verify_ssl == client.verify_ssl
+
+    # Session authentication state MUST NOT be shared
+    assert cloned.session_id is None
+    assert cloned.cookies == {}
+    assert cloned.session_expiry is None
+    assert cloned.client is not client.client
+
+
+def test_sap_client_get_documents_pages_top_param():
+    client = SAPClient()
+    client.base_url = "https://sap-test:50000/b1s/v1"
+    client.session_id = "active-session"
+    client.cookies = {"B1SESSION": "active-session"}
+    client.session_expiry = datetime.datetime.now() + datetime.timedelta(minutes=10)
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"value": []}
+
+    with patch.object(client, "_execute_request_with_retry", return_value=mock_response) as mock_exec:
+        list(client.get_documents_pages("2026-03-01", "2026-03-02", "Invoices", page_size=250))
+        mock_exec.assert_called_once()
+        _, kwargs = mock_exec.call_args
+        params = kwargs.get("params", {})
+        assert params.get("$top") == "250"
+
+
+def test_sap_page_size_setting_validation():
+    from pydantic import ValidationError
+    from app.core.config import Settings
+
+    # Valid bounds (1 .. 1000)
+    s = Settings(
+        DATABASE_URL="sqlite:///test.db",
+        SECRET_KEY="some-secret-key",
+        SAP_PAGE_SIZE=200,
+    )
+    assert s.sap_page_size == 200
+
+    # Invalid: 0 (less than 1)
+    with pytest.raises(ValidationError):
+        Settings(
+            DATABASE_URL="sqlite:///test.db",
+            SECRET_KEY="some-secret-key",
+            SAP_PAGE_SIZE=0,
+        )
+
+    # Invalid: 1500 (greater than 1000)
+    with pytest.raises(ValidationError):
+        Settings(
+            DATABASE_URL="sqlite:///test.db",
+            SECRET_KEY="some-secret-key",
+            SAP_PAGE_SIZE=1500,
+        )
+
+
+def test_sap_client_get_documents_pages_requires_page_size():
+    client = SAPClient()
+    with pytest.raises(ValueError, match="page_size must be explicitly provided"):
+        list(client.get_documents_pages("2026-03-01", "2026-03-02", "Invoices"))
+
+
 
 

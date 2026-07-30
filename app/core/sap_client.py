@@ -54,6 +54,19 @@ class SAPClient:
             verify_ssl=connection.verify_ssl,
         )
 
+    def clone(self) -> "SAPClient":
+        """
+        Creates a new independent SAPClient instance with matching connection parameters.
+        State (session_id, cookies, session_expiry, httpx.Client) is NOT copied.
+        """
+        return SAPClient(
+            base_url=self.base_url,
+            username=self.username,
+            password=self.password,
+            company_db=self.company_db,
+            verify_ssl=self.verify_ssl,
+        )
+
     def login(self) -> None:
         """
         Logs in to the SAP Service Layer and caches session cookies and timeout.
@@ -70,6 +83,7 @@ class SAPClient:
         }
 
         logger.info("SAP Service Layer: Initiating Login request...")
+        start_time = time.perf_counter()
         try:
             response = self.client.post(login_url, json=payload)
         except httpx.RequestError as exc:
@@ -97,7 +111,8 @@ class SAPClient:
         timeout_mins = int(data.get("SessionTimeout", 30))
         # Proactively refresh 2 minutes before expiry
         self.session_expiry = datetime.datetime.now() + datetime.timedelta(minutes=max(timeout_mins - 2, 1))
-        logger.info("SAP Service Layer: Login successful.")
+        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+        logger.info(f"SAP Service Layer: Login successful (took {elapsed_ms:.1f}ms).")
 
     def _ensure_session(self) -> None:
         """
@@ -156,6 +171,7 @@ class SAPClient:
         from_date: str,
         to_date: str,
         endpoint_name: str,
+        page_size: int | None = None,
         reconciliation_session_id: str = "N/A",
         cu_field: str = "U_CUINV",
     ) -> Generator[List[Dict[str, Any]], None, None]:
@@ -164,12 +180,17 @@ class SAPClient:
         Traverses @odata.nextLink exactly as returned by SAP.
         Yields raw document lists (pages) to keep memory footprint low.
         """
+        if page_size is None:
+            raise ValueError("page_size must be explicitly provided by caller (Settings/Service layer).")
+
         self._ensure_session()
 
         # OData filter query — Population Filter (exclude cancelled invoices based on default ingestion policy)
         # TODO: Move to configurable ingestion policy in settings if needed
         filter_str = f"DocDate ge '{from_date}' and DocDate le '{to_date}'  and Cancelled eq 'tNO'"
         params = {"$filter": filter_str}
+        if page_size and page_size > 0:
+            params["$top"] = str(page_size)
 
         # Try optimizing with $select if supported. Falling back if query returns HTTP 400.
         # cu_field is the configured SAP field holding the CU number (U_CUINV for sales,

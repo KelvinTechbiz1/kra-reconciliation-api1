@@ -63,7 +63,7 @@ def test_cancelled_documents_excluded_in_query():
 
     with patch.object(client, "_execute_request_with_retry", return_value=mock_response) as mock_exec:
         # Consume the generator to trigger the request
-        list(client.get_documents_pages("2026-03-01", "2026-03-02", "Invoices"))
+        list(client.get_documents_pages("2026-03-01", "2026-03-02", "Invoices", page_size=500))
         
         # Verify that Cancelled eq 'tNO' is in the request filter query
         mock_exec.assert_called_once()
