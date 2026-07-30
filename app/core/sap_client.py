@@ -208,9 +208,14 @@ class SAPClient:
         )
 
         page_number = 0
+        total_rows = 0
+        total_start = time.perf_counter()
+        page_latencies = []
+        total_json_parse = 0.0
 
         while next_url:
             page_number += 1
+            page_start = time.perf_counter()
             current_params = None
             if next_url == url:
                 current_params = params_with_select if use_select else params
@@ -263,6 +268,7 @@ class SAPClient:
                 )
                 raise SAPQueryError(f"SAP documents query failed (HTTP {response.status_code}): {response.text}")
 
+            json_start = time.perf_counter()
             try:
                 data = response.json()
             except ValueError:
@@ -270,9 +276,15 @@ class SAPClient:
                     f"[ReconciliationSession: {reconciliation_session_id}] SAP returned non-JSON data: {response.text}"
                 )
                 raise SAPQueryError("SAP documents query returned invalid JSON.")
+            json_elapsed = time.perf_counter() - json_start
+            total_json_parse += json_elapsed
 
             documents_page = data.get("value", [])
+            page_elapsed = time.perf_counter() - page_start
+            page_latencies.append(page_elapsed)
+
             yield documents_page
+            total_rows += len(documents_page)
 
             # Traverse @odata.nextLink exactly as returned by SAP
             next_link = data.get("odata.nextLink") or data.get("@odata.nextLink")
@@ -281,8 +293,8 @@ class SAPClient:
                 f"[ReconciliationSession: {reconciliation_session_id}] Pagination page {page_number} result: "
                 f"returned {len(documents_page)} rows, "
                 f"raw nextLink={next_link!r}, "
-                f"params=$top={params.get('$top', 'N/A')}, "
-                f"$select={'PRESENT' if use_select else 'ABSENT'}"
+                f"page_time={page_elapsed*1000:.1f}ms, "
+                f"json_parse={json_elapsed*1000:.1f}ms"
             )
 
             if next_link:
@@ -294,7 +306,14 @@ class SAPClient:
             else:
                 next_url = None
 
+        total_elapsed = time.perf_counter() - total_start
+        avg_page = (sum(page_latencies) / len(page_latencies) * 1000) if page_latencies else 0
+
         logger.info(
             f"[ReconciliationSession: {reconciliation_session_id}] Pagination complete: "
-            f"{endpoint_name} fetched {page_number} page(s)"
+            f"{endpoint_name} fetched {total_rows} rows across {page_number} page(s) "
+            f"in {total_elapsed*1000:.0f}ms total. "
+            f"Avg page: {avg_page:.0f}ms, "
+            f"JSON parse total: {total_json_parse*1000:.0f}ms "
+            f"({((total_json_parse / total_elapsed)*100) if total_elapsed else 0:.0f}% of total)"
         )
