@@ -21,10 +21,10 @@ def _resolve_list_scope(
     company_id: Optional[int] = Query(None, description="Filter by company (admin only)"),
 ) -> Optional[int]:
     """Admin users may list any company's users or filter by company."""
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "company_admin"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Administrator privileges required to manage users.",
+            detail="Administrator or company admin privileges required to manage users.",
         )
     return company_id if current_user.company_id is None else current_user.company_id
 
@@ -51,7 +51,7 @@ def create_user(
     - Company admins can create users for their assigned company only.
     """
     if current_user.company_id is not None:
-        if current_user.role != "admin":
+        if current_user.role not in ("admin", "company_admin"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only administrators can manage users.",
@@ -95,7 +95,7 @@ def update_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
 
     if current_user.company_id is not None:
-        if current_user.role != "admin" or target_user.company_id != current_user.company_id:
+        if current_user.role not in ("admin", "company_admin") or target_user.company_id != current_user.company_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only manage users within your company.",
@@ -133,7 +133,7 @@ def reset_password(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
 
     if current_user.company_id is not None:
-        if current_user.role != "admin" or target_user.company_id != current_user.company_id:
+        if current_user.role not in ("admin", "company_admin") or target_user.company_id != current_user.company_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only reset passwords for users within your company.",
@@ -155,7 +155,7 @@ def send_reset_email(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
 
     if current_user.company_id is not None:
-        if current_user.role != "admin" or target_user.company_id != current_user.company_id:
+        if current_user.role not in ("admin", "company_admin") or target_user.company_id != current_user.company_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only manage users within your company.",
@@ -199,7 +199,7 @@ def delete_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
 
     if current_user.company_id is not None:
-        if current_user.role != "admin" or target_user.company_id != current_user.company_id:
+        if current_user.role not in ("admin", "company_admin") or target_user.company_id != current_user.company_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only manage users within your company.",

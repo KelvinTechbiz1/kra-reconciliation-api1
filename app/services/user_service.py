@@ -9,7 +9,7 @@ from app.schemas.user import UserCreate, UserUpdate
 
 import secrets
 
-ALLOWED_ROLES = {"admin", "checker"}
+ALLOWED_ROLES = {"admin", "company_admin", "checker"}
 
 
 def generate_secure_password(length: int = 14) -> str:

@@ -64,6 +64,7 @@ export default function SettingsPage() {
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string>("checker");
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [isCompanyAdmin, setIsCompanyAdmin] = useState(false);
 
   const loadSettingsForCompany = useCallback(async (targetCompanyId?: number | null) => {
     setLoading(true);
@@ -100,6 +101,7 @@ export default function SettingsPage() {
             userCompId = me.company_id ?? null;
             isAdminFlag = me.role === "admin";
             setIsPlatformAdmin(isAdminFlag);
+            setIsCompanyAdmin(me.role === "company_admin");
           }
         }
 
@@ -141,22 +143,26 @@ export default function SettingsPage() {
   };
 
   const loadCompanyData = useCallback(async () => {
-    if (currentUserRole !== "admin") return;
     try {
-      const [companyRes, usersRes] = await Promise.all([
-        fetchWithAuth("/company/all"),
-        fetchWithAuth("/users"),
-      ]);
-      if (companyRes.ok) setCompanies(await companyRes.json());
-      if (usersRes.ok) setUsers(await usersRes.json());
+      if (currentUserRole === "admin") {
+        const [companyRes, usersRes] = await Promise.all([
+          fetchWithAuth("/company/all"),
+          fetchWithAuth("/users"),
+        ]);
+        if (companyRes.ok) setCompanies(await companyRes.json());
+        if (usersRes.ok) setUsers(await usersRes.json());
+      } else if (currentUserRole === "company_admin") {
+        const usersRes = await fetchWithAuth("/users");
+        if (usersRes.ok) setUsers(await usersRes.json());
+      }
     } catch {
       // non-critical — tab will show loading state
     }
   }, [currentUserRole]);
 
-  // Reload company list when company tab is opened or company updated
+  // Reload company/user list when relevant tab is opened
   useEffect(() => {
-    if (currentUserRole === "admin" && (activeTab === "company-profile" || activeTab === "users")) {
+    if ((currentUserRole === "admin" || currentUserRole === "company_admin") && (activeTab === "company-profile" || activeTab === "users")) {
       const timer = setTimeout(() => {
         loadCompanyData();
       }, 0);
@@ -203,7 +209,9 @@ export default function SettingsPage() {
     );
   }
 
-  const isAdmin = currentUserRole === "admin" || isPlatformAdmin;
+  const canManageCompanies = currentUserRole === "admin";
+  const canManageUsers = currentUserRole === "admin" || currentUserRole === "company_admin";
+  const canSwitchCompany = canManageCompanies;
   const currentSelectedCompany = companies.find((c) => c.id === selectedCompanyId);
 
   const sections: NavSection[] = [
@@ -236,7 +244,11 @@ export default function SettingsPage() {
   const filteredSections = sections
     .map((sec) => ({
       ...sec,
-      items: sec.items.filter((item) => !item.adminOnly || isAdmin),
+      items: sec.items.filter((item) => {
+        if (item.id === "company-profile") return canManageCompanies;
+        if (item.id === "users") return canManageUsers;
+        return !item.adminOnly || canManageCompanies;
+      }),
     }))
     .filter((sec) => sec.items.length > 0);
 
@@ -259,8 +271,8 @@ export default function SettingsPage() {
           </p>
         </div>
 
-        {/* Target Entity Switcher for Admins */}
-        {isAdmin && companies.length > 0 && (
+        {/* Target Entity Switcher for Platform Admins */}
+        {canSwitchCompany && companies.length > 0 && (
           <div className="flex items-center gap-2.5 bg-white border border-slate-200 p-2 rounded-xl shadow-xs">
             <div className="p-1.5 bg-slate-100 rounded-lg">
               <Building2 className="w-4 h-4 text-slate-600" />
@@ -394,11 +406,11 @@ export default function SettingsPage() {
             />
           )}
 
-          {activeTab === "company-profile" && isAdmin && (
+          {activeTab === "company-profile" && canManageCompanies && (
             <CompanyProfileCard companies={companies} onSaved={handleCompanySaved} />
           )}
 
-          {activeTab === "users" && isAdmin && (
+          {activeTab === "users" && canManageUsers && (
             <UserManagementCard
               users={users}
               companies={companies}

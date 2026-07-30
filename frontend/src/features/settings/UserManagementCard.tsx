@@ -47,6 +47,11 @@ const ROLE_META: Record<UserRole, { label: string; color: string; icon: React.Re
     color: "bg-violet-100 text-violet-800 border border-violet-200",
     icon: <ShieldCheck className="w-3 h-3" />,
   },
+  company_admin: {
+    label: "Company Admin",
+    color: "bg-amber-100 text-amber-800 border border-amber-200",
+    icon: <ShieldCheck className="w-3 h-3" />,
+  },
   checker: {
     label: "Checker",
     color: "bg-blue-100 text-blue-800 border border-blue-200",
@@ -251,6 +256,7 @@ function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps
                     className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-800 text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                   >
                     <option value="checker">Checker</option>
+                    <option value="company_admin">Company Admin</option>
                     <option value="admin">Admin</option>
                   </select>
                 </div>
@@ -856,9 +862,11 @@ export function UserManagementCard({ users, companies = [], currentUserId, onSav
                           <div
                             className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${user.role === "admin"
                               ? "bg-violet-100 text-violet-800"
-                              : user.role === "checker"
-                                ? "bg-blue-100 text-blue-800"
-                                : "bg-slate-100 text-slate-700"
+                              : user.role === "company_admin"
+                                ? "bg-amber-100 text-amber-800"
+                                : user.role === "checker"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-slate-100 text-slate-700"
                               }`}
                           >
                             {(user.full_name || user.username)[0].toUpperCase()}

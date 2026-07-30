@@ -24,14 +24,14 @@ class UserCreate(BaseModel):
     password: Optional[str] = Field(default=None, description="Password, minimum 8 characters with policy requirements (auto-generated if omitted)")
     email: str | None = Field(default=None, description="Email address")
     full_name: str | None = Field(default=None, description="Display name")
-    role: str = Field(default="checker", description="User role: admin or checker")
+    role: str = Field(default="checker", description="User role: admin, company_admin, or checker")
     company_id: int | None = Field(default=None, description="Associated company ID")
 
     @field_validator("role")
     @classmethod
     def validate_role(cls, v: str) -> str:
-        if v not in {"admin", "checker"}:
-            raise ValueError("Role must be 'admin' or 'checker'")
+        if v not in {"admin", "company_admin", "checker"}:
+            raise ValueError("Role must be 'admin', 'company_admin', or 'checker'")
         return v
 
     @field_validator("password")
@@ -53,8 +53,8 @@ class UserUpdate(BaseModel):
     @field_validator("role")
     @classmethod
     def validate_role(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and v not in {"admin", "checker"}:
-            raise ValueError("Role must be 'admin' or 'checker'")
+        if v is not None and v not in {"admin", "company_admin", "checker"}:
+            raise ValueError("Role must be 'admin', 'company_admin', or 'checker'")
         return v
 
 

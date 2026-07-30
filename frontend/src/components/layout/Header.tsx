@@ -176,9 +176,13 @@ export function Header() {
                       <div className="mt-1 flex items-center gap-1.5">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${currentUser.role === "admin"
                           ? "bg-violet-100 text-violet-800"
-                          : "bg-blue-100 text-blue-800"
+                          : currentUser.role === "company_admin"
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-blue-100 text-blue-800"
                           }`}>
                           {currentUser.role === "admin" ? (
+                            <ShieldCheck className="w-2.5 h-2.5" />
+                          ) : currentUser.role === "company_admin" ? (
                             <ShieldCheck className="w-2.5 h-2.5" />
                           ) : (
                             <BadgeCheck className="w-2.5 h-2.5" />
