@@ -31,15 +31,19 @@ export function SystemSettingsCard({ settings, selectedCompanyId, onSaved }: Sys
   const [unmappedVatPolicy, setUnmappedVatPolicy] = useState<UnmappedVatPolicy>(
     settings.unmapped_vat_policy
   );
-  const [purchaseCuSource, setPurchaseCuSource] = useState<PurchaseCUField>(
-    settings.purchase_cu_source
+  const [salesCuSource, setSalesCuSource] = useState<string>(
+    settings.sales_cu_source || "U_CUINV"
+  );
+  const [purchaseCuSource, setPurchaseCuSource] = useState<string>(
+    settings.purchase_cu_source || "U_CUINV"
   );
 
   useEffect(() => {
     setAmountTolerance(settings.amount_tolerance);
     setBaseAmountPolicy(settings.base_amount_policy);
     setUnmappedVatPolicy(settings.unmapped_vat_policy);
-    setPurchaseCuSource(settings.purchase_cu_source);
+    setSalesCuSource(settings.sales_cu_source || "U_CUINV");
+    setPurchaseCuSource(settings.purchase_cu_source || "U_CUINV");
   }, [settings]);
 
   const [saving, setSaving] = useState(false);
@@ -57,6 +61,7 @@ export function SystemSettingsCard({ settings, selectedCompanyId, onSaved }: Sys
         amount_tolerance: amountTolerance,
         base_amount_policy: baseAmountPolicy,
         unmapped_vat_policy: unmappedVatPolicy,
+        sales_cu_source: salesCuSource,
         purchase_cu_source: purchaseCuSource,
         version: settings.version,
       };
@@ -172,29 +177,111 @@ export function SystemSettingsCard({ settings, selectedCompanyId, onSaved }: Sys
                 <option value="needs_review">Mark for Audit Review (NEEDS_REVIEW)</option>
                 <option value="reject_invoice">Reject Specific Invoice Immediately</option>
               </select>
+          </div>
+        </div>
+
+        {/* CU Number Field Sources (Sales & Purchases) */}
+        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5">
+            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-slate-500" />
+              SAP Control Unit (CU) Field Mapping
+            </h3>
+            <span className="text-[11px] text-slate-500">
+              Type custom SAP UDF name or pick a preset
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Sales CU Source */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                Sales Invoice CU Field
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  list="sales-cu-preset-list"
+                  value={salesCuSource}
+                  onChange={(e) => setSalesCuSource(e.target.value)}
+                  placeholder="e.g. U_CUINV, NumAtCard, Comments"
+                  required
+                  className="w-full px-3.5 py-2 h-9 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm font-mono transition-colors focus:outline-none focus:ring-2 focus:ring-[#0e1734]/20 focus:border-[#0e1734]"
+                />
+                <datalist id="sales-cu-preset-list">
+                  <option value="U_CUINV">KRA (U_CUINV)</option>
+                  <option value="NumAtCard">Customer Ref (NumAtCard)</option>
+                  <option value="Comments">Comments</option>
+                  <option value="JournalMemo">Journal Memo</option>
+                  <option value="Reference1">Ref 1</option>
+                </datalist>
+              </div>
+              <div className="flex flex-wrap gap-1 pt-0.5">
+                {["U_CUINV", "NumAtCard", "Comments", "JournalMemo", "Reference1"].map((field) => (
+                  <button
+                    key={field}
+                    type="button"
+                    onClick={() => setSalesCuSource(field)}
+                    className={`px-2 py-0.5 text-[11px] font-mono rounded border transition-colors ${
+                      salesCuSource === field
+                        ? "bg-[#0e1734] text-white border-[#0e1734]"
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {field}
+                  </button>
+                ))}
+              </div>
+              <span className="text-[11px] text-slate-500 block">
+                SAP field holding the Control Unit number on Sales Invoices.
+              </span>
             </div>
 
-            <div className="space-y-1.5">
+            {/* Purchase CU Source */}
+            <div className="space-y-2">
               <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-slate-500" />
-                Purchase CU Number Source
+                Purchase Invoice CU Field
               </label>
-              <select
-                value={purchaseCuSource}
-                onChange={(e) => setPurchaseCuSource(e.target.value as PurchaseCUField)}
-                className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-800 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0e1734]/20 focus:border-[#0e1734] font-medium cursor-pointer"
-              >
-                <option value="U_CUINV">KRA (U_CUINV)</option>
-                <option value="NumAtCard">Vendor Reference (NumAtCard)</option>
-                <option value="Comments">Comments</option>
-                <option value="JournalMemo">Journal Memo (JournalMemo)</option>
-                <option value="Reference1">Invoice Number (Reference1)</option>
-              </select>
+              <div className="relative">
+                <input
+                  type="text"
+                  list="purchase-cu-preset-list"
+                  value={purchaseCuSource}
+                  onChange={(e) => setPurchaseCuSource(e.target.value)}
+                  placeholder="e.g. U_CUINV, NumAtCard, Comments"
+                  required
+                  className="w-full px-3.5 py-2 h-9 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm font-mono transition-colors focus:outline-none focus:ring-2 focus:ring-[#0e1734]/20 focus:border-[#0e1734]"
+                />
+                <datalist id="purchase-cu-preset-list">
+                  <option value="U_CUINV">KRA (U_CUINV)</option>
+                  <option value="NumAtCard">Vendor Ref (NumAtCard)</option>
+                  <option value="Comments">Comments</option>
+                  <option value="JournalMemo">Journal Memo</option>
+                  <option value="Reference1">Ref 1</option>
+                </datalist>
+              </div>
+              <div className="flex flex-wrap gap-1 pt-0.5">
+                {["U_CUINV", "NumAtCard", "Comments", "JournalMemo", "Reference1"].map((field) => (
+                  <button
+                    key={field}
+                    type="button"
+                    onClick={() => setPurchaseCuSource(field)}
+                    className={`px-2 py-0.5 text-[11px] font-mono rounded border transition-colors ${
+                      purchaseCuSource === field
+                        ? "bg-[#0e1734] text-white border-[#0e1734]"
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {field}
+                  </button>
+                ))}
+              </div>
               <span className="text-[11px] text-slate-500 block">
-                SAP field that stores the Control Unit number on Purchase Invoices.
+                SAP field holding the Control Unit number on Purchase Invoices.
               </span>
             </div>
           </div>
+        </div>
 
         {/* Action Button */}
         <div className="pt-4 border-t border-slate-200 flex justify-end">

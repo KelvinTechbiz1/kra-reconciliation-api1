@@ -108,12 +108,19 @@ class CompanySetting(Base):
     include_debit_notes = Column(Boolean, nullable=False, default=True)
     skip_cancelled = Column(Boolean, nullable=False, default=True)
 
+    sales_cu_source = Column(
+        String(50),
+        nullable=False,
+        default="U_CUINV",
+        comment="SAP field holding the CU number on Sales Invoices (e.g. U_CUINV, NumAtCard, Comments, JournalMemo, Reference1)",
+    )
     purchase_cu_source = Column(
         String(50),
         nullable=False,
         default="U_CUINV",
         comment="SAP field holding the CU number on Purchase Invoices (e.g. U_CUINV, NumAtCard, Comments, JournalMemo, Reference1)",
     )
+
 
     kra_parsing_profiles = Column(JSON, nullable=True, comment="JSON configuration mapping KRA section prefixes to CSV parsing rules")
 

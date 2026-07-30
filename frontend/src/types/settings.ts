@@ -29,7 +29,8 @@ export interface SystemSettings {
   include_credit_notes: boolean;
   include_debit_notes: boolean;
   skip_cancelled: boolean;
-  purchase_cu_source: PurchaseCUField;
+  sales_cu_source: string;
+  purchase_cu_source: string;
   kra_parsing_profiles?: KRAParsingProfilesConfig | null;
   version: number;
   updated_at: string;

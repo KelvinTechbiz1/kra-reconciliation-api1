@@ -63,7 +63,8 @@ class SystemSettingsBase(BaseModel):
     include_credit_notes: bool = Field(default=True)
     include_debit_notes: bool = Field(default=True)
     skip_cancelled: bool = Field(default=True)
-    purchase_cu_source: PurchaseCUField = Field(default=PurchaseCUField.KRA)
+    sales_cu_source: str = Field(default="U_CUINV", min_length=1, max_length=50, description="SAP field holding the CU number on Sales Invoices")
+    purchase_cu_source: str = Field(default="U_CUINV", min_length=1, max_length=50, description="SAP field holding the CU number on Purchase Invoices")
     kra_parsing_profiles: Optional["KRAParsingProfilesConfig"] = Field(None, description="Internal JSON representation of profiles")
 
 

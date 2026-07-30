@@ -75,6 +75,7 @@ def load_sap_invoices(
         reconciliation_type=reconciliation_type,
         sap_client=sap_client,
         reconciliation_session_id=session.id,
+        sales_cu_source=system_setting.sales_cu_source,
         purchase_cu_source=system_setting.purchase_cu_source,
     )
 

@@ -24,6 +24,9 @@ import { fetchWithAuth } from "@/lib/api";
 interface PaginationData<T> {
   items: T[];
   totalItems: number | null;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  loadNextPage?: () => void;
 }
 
 interface WorkspaceViewProps {
@@ -403,6 +406,9 @@ export function WorkspaceView({
               data={sapPagination.items}
               columns={invoiceColumns}
               asyncState={uiState.sap}
+              hasMore={sapPagination.hasMore}
+              isLoadingMore={sapPagination.isLoadingMore}
+              onLoadMore={sapPagination.loadNextPage}
               emptyState={
                 <div className="flex flex-col items-center gap-3 py-12">
                   <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center">
@@ -445,6 +451,9 @@ export function WorkspaceView({
               data={kraPagination.items}
               columns={invoiceColumns}
               asyncState={uiState.kra}
+              hasMore={kraPagination.hasMore}
+              isLoadingMore={kraPagination.isLoadingMore}
+              onLoadMore={kraPagination.loadNextPage}
               emptyState={
                 <div className="flex flex-col items-center gap-3 py-12">
                   <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center">

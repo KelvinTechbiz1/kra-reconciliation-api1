@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
+import { Loader2 } from "lucide-react";
 import { AsyncState, AsyncStatus } from "@/features/sales/workspace/types";
 
 export interface Column<T> {
@@ -16,6 +17,9 @@ interface DataTableProps<T> {
   emptyState: React.ReactNode;
   errorState: React.ReactNode;
   className?: string;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
 }
 
 export function DataTable<T>({ 
@@ -24,12 +28,45 @@ export function DataTable<T>({
   asyncState, 
   emptyState, 
   errorState,
-  className = "" 
+  className = "",
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
 }: DataTableProps<T>) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!onLoadMore || !hasMore || isLoadingMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          onLoadMore();
+        }
+      },
+      { threshold: 0.1, root: containerRef.current }
+    );
+
+    const currentSentinel = sentinelRef.current;
+    if (currentSentinel) observer.observe(currentSentinel);
+
+    return () => {
+      if (currentSentinel) observer.unobserve(currentSentinel);
+    };
+  }, [onLoadMore, hasMore, isLoadingMore]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!onLoadMore || !hasMore || isLoadingMore) return;
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop - clientHeight < 120) {
+      onLoadMore();
+    }
+  };
   
   return (
     <div className={`flex flex-col relative w-full h-full ${className}`}>
-      <div className="overflow-auto flex-1">
+      <div ref={containerRef} onScroll={handleScroll} className="overflow-auto flex-1 relative">
         <table className="w-full text-sm text-left whitespace-nowrap relative">
           <thead className="bg-slate-50 text-slate-500 uppercase text-xs tracking-wider border-b border-slate-200 sticky top-0 z-10 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
             <tr>
@@ -66,10 +103,23 @@ export function DataTable<T>({
                     ))}
                   </tr>
                 ))}
+
+                {isLoadingMore && (
+                  <tr key="loading-more-indicator">
+                    <td colSpan={columns.length} className="py-3 text-center text-xs text-slate-500 bg-slate-50/60">
+                      <div className="inline-flex items-center justify-center gap-2 font-medium">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-[#0e1734]" />
+                        Loading more records...
+                      </div>
+                    </td>
+                  </tr>
+                )}
               </>
             )}
           </tbody>
         </table>
+
+        {hasMore && <div ref={sentinelRef} className="h-4 w-full" />}
 
         {/* Full-panel overlays for Idle, Error, or Empty Loaded states */}
         {asyncState.status === AsyncStatus.Idle && (

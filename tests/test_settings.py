@@ -67,7 +67,8 @@ def test_get_and_update_settings(client: TestClient, db_session):
     assert response.status_code == 200
     data = response.json()
     assert "system_settings" in data
-    assert data["system_settings"]["amount_tolerance"] == "10.00"
+    assert data["system_settings"]["sales_cu_source"] == "U_CUINV"
+    assert data["system_settings"]["purchase_cu_source"] == "U_CUINV"
 
     # 2. Update System Settings
     sys_settings = data["system_settings"]
@@ -79,14 +80,18 @@ def test_get_and_update_settings(client: TestClient, db_session):
         "include_credit_notes": True,
         "include_debit_notes": True,
         "skip_cancelled": True,
+        "sales_cu_source": "U_CUSTOM_SALES_CU",
+        "purchase_cu_source": "NumAtCard",
         "version": sys_settings["version"],
-        "reason": "Test tolerance update to 15.50",
+        "reason": "Test tolerance update to 15.50 and custom sales CU source",
     }
     update_res = client.put("/api/v1/settings/system-settings?company_id=1", json=sys_update_payload, headers=headers)
     assert update_res.status_code == 200
     updated_sys = update_res.json()
     assert updated_sys["amount_tolerance"] == "15.50"
     assert updated_sys["base_amount_policy"] == "treat_as_zero"
+    assert updated_sys["sales_cu_source"] == "U_CUSTOM_SALES_CU"
+    assert updated_sys["purchase_cu_source"] == "NumAtCard"
     assert updated_sys["version"] == sys_settings["version"] + 1
 
     # 3. Update SAP Connection

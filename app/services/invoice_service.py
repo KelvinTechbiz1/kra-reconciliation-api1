@@ -14,6 +14,7 @@ def get_invoices(
     reconciliation_type: ReconciliationType = ReconciliationType.SALES,
     sap_client: SAPClient = None,
     reconciliation_session_id: str = "N/A",
+    sales_cu_source: str = "U_CUINV",
     purchase_cu_source: str = "U_CUINV",
 ) -> list[Invoice]:
     """
@@ -35,8 +36,8 @@ def get_invoices(
     else:
         endpoints = [("PurchaseInvoices", "Invoice"), ("PurchaseCreditNotes", "CreditNote")]
 
-    # The CU source is only configurable for purchases; sales always use U_CUINV.
-    cu_field = purchase_cu_source if reconciliation_type == ReconciliationType.PURCHASES else "U_CUINV"
+    # The CU source is configurable for both sales and purchases.
+    cu_field = sales_cu_source if reconciliation_type == ReconciliationType.SALES else purchase_cu_source
 
     for endpoint_name, source_doc_type in endpoints:
         raw_pages = sap_client.get_documents_pages(
