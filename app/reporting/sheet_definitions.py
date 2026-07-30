@@ -41,10 +41,7 @@ _SAP_INV_NUM = SheetColumn(header="SAP Invoice #", attr="sap_invoice_number", wi
 _SAP_DATE = SheetColumn(header="SAP Date", attr="sap_invoice_date", is_date=True, width=14)
 _SAP_AMOUNT = SheetColumn(header="SAP Amount", attr="sap_base_amount", is_amount=True, width=18)
 _SAP_VAT = SheetColumn(header="SAP VAT", attr="sap_vat_group", width=12)
-_SAP_16 = SheetColumn(header="SAP 16% Base", attr="sap_base_16", is_amount=True, width=16)
-_SAP_8 = SheetColumn(header="SAP 8% Base", attr="sap_base_8", is_amount=True, width=16)
-_SAP_0 = SheetColumn(header="SAP 0% Base", attr="sap_base_0", is_amount=True, width=16)
-_SAP_EXEMPT = SheetColumn(header="SAP Exempt Base", attr="sap_base_exempt", is_amount=True, width=16)
+_SAP_TAX_BREAKDOWN = SheetColumn(header="SAP Tax Breakdown", attr="sap_tax_breakdown", width=26)
 
 _KRA_PIN = SheetColumn(header="KRA PIN", attr="kra_pin", width=18)
 _KRA_PARTNER = SheetColumn(header="KRA Partner", attr="kra_partner_name", width=30)
@@ -52,10 +49,7 @@ _KRA_INV_NUM = SheetColumn(header="KRA Invoice #", attr="kra_invoice_number", wi
 _KRA_DATE = SheetColumn(header="KRA Date", attr="kra_invoice_date", is_date=True, width=14)
 _KRA_AMOUNT = SheetColumn(header="KRA Amount", attr="kra_base_amount", is_amount=True, width=18)
 _KRA_VAT = SheetColumn(header="KRA VAT", attr="kra_vat_group", width=12)
-_KRA_16 = SheetColumn(header="KRA 16% Base", attr="kra_base_16", is_amount=True, width=16)
-_KRA_8 = SheetColumn(header="KRA 8% Base", attr="kra_base_8", is_amount=True, width=16)
-_KRA_0 = SheetColumn(header="KRA 0% Base", attr="kra_base_0", is_amount=True, width=16)
-_KRA_EXEMPT = SheetColumn(header="KRA Exempt Base", attr="kra_base_exempt", is_amount=True, width=16)
+_KRA_TAX_BREAKDOWN = SheetColumn(header="KRA Tax Breakdown", attr="kra_tax_breakdown", width=26)
 
 
 NEEDS_REVIEW_STATUSES = frozenset({
@@ -83,8 +77,8 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
                 title="Missing CU Number",
                 columns=(
                     _CU_COL,
-                    _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_16, _SAP_8, _SAP_0, _SAP_EXEMPT,
-                    _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_16, _KRA_8, _KRA_0, _KRA_EXEMPT,
+                    _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_TAX_BREAKDOWN,
+                    _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_TAX_BREAKDOWN,
                 ),
                 statuses=frozenset({ReconciliationStatus.MISSING_CU_NUMBER}),
             ),
@@ -92,7 +86,7 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
                 title="Missing in SAP",
                 columns=(
                     _CU_COL,
-                    _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_16, _KRA_8, _KRA_0, _KRA_EXEMPT,
+                    _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_TAX_BREAKDOWN,
                 ),
                 statuses=frozenset({ReconciliationStatus.MISSING_IN_SAP}),
                 is_compact=True,
@@ -101,7 +95,7 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
                 title="Missing in KRA",
                 columns=(
                     _CU_COL,
-                    _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_16, _SAP_8, _SAP_0, _SAP_EXEMPT,
+                    _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_TAX_BREAKDOWN,
                 ),
                 statuses=frozenset({ReconciliationStatus.MISSING_IN_KRA}),
                 is_compact=True,
@@ -110,8 +104,8 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
                 title="Amount Mismatch",
                 columns=(
                     _CU_COL,
-                    _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_16, _SAP_8, _SAP_0, _SAP_EXEMPT,
-                    _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_16, _KRA_8, _KRA_0, _KRA_EXEMPT,
+                    _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_TAX_BREAKDOWN,
+                    _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_TAX_BREAKDOWN,
                 ),
                 statuses=frozenset({ReconciliationStatus.AMOUNT_MISMATCH}),
             ),
@@ -119,8 +113,8 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
                 title="VAT Mismatch",
                 columns=(
                     _CU_COL,
-                    _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_16, _SAP_8, _SAP_0, _SAP_EXEMPT,
-                    _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_16, _KRA_8, _KRA_0, _KRA_EXEMPT,
+                    _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_TAX_BREAKDOWN,
+                    _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_TAX_BREAKDOWN,
                 ),
                 statuses=frozenset({ReconciliationStatus.VAT_MISMATCH}),
             ),
@@ -128,8 +122,8 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
                 title="Duplicate CU",
                 columns=(
                     _CU_COL,
-                    _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_16, _SAP_8, _SAP_0, _SAP_EXEMPT,
-                    _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_16, _KRA_8, _KRA_0, _KRA_EXEMPT,
+                    _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_TAX_BREAKDOWN,
+                    _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_TAX_BREAKDOWN,
                 ),
                 statuses=frozenset({ReconciliationStatus.DUPLICATE_SOURCE_KEY}),
             ),
@@ -137,8 +131,8 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
                 title="Multiple Issues",
                 columns=(
                     _CU_COL,
-                    _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_16, _SAP_8, _SAP_0, _SAP_EXEMPT,
-                    _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_16, _KRA_8, _KRA_0, _KRA_EXEMPT,
+                    _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_TAX_BREAKDOWN,
+                    _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_TAX_BREAKDOWN,
                 ),
                 statuses=frozenset({ReconciliationStatus.MULTIPLE_MISMATCHES}),
             ),
@@ -151,8 +145,8 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
                 title="Matches",
                 columns=(
                     _CU_COL,
-                    _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_16, _SAP_8, _SAP_0, _SAP_EXEMPT,
-                    _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_16, _KRA_8, _KRA_0, _KRA_EXEMPT,
+                    _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_TAX_BREAKDOWN,
+                    _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_TAX_BREAKDOWN,
                 ),
                 statuses=frozenset({ReconciliationStatus.MATCH}),
                 is_compact=True,
