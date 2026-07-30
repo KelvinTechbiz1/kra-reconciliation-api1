@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { KRAVATMappingItem } from "@/types/settings";
 import { fetchWithAuth } from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/errors";
 import { useToast } from "@/components/ToastProvider";
 import {
   Save,
@@ -111,16 +112,16 @@ export function KRAVATMappingEditor({ mappings: initialMappings, selectedCompany
       });
 
       if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.detail || "Failed to update KRA VAT mappings.");
+        const errData = await res.json().catch(() => null);
+        throw new Error(getApiErrorMessage(errData, "Failed to update KRA VAT mappings."));
       }
 
       setReason("");
       notify("KRA VAT mappings saved successfully!", "success");
       onSaved();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      notify(msg || "An error occurred saving KRA VAT mappings.", "error");
+      const msg = getApiErrorMessage(err, "An error occurred saving KRA VAT mappings.");
+      notify(msg, "error");
     } finally {
       setSaving(false);
     }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { BaseAmountPolicy, PurchaseCUField, SystemSettings, UnmappedVatPolicy } from "@/types/settings";
 import { fetchWithAuth } from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/errors";
 import { useToast } from "@/components/ToastProvider";
 import {
   Sliders,
@@ -68,20 +69,20 @@ export function SystemSettingsCard({ settings, selectedCompanyId, onSaved }: Sys
       });
 
       if (res.status === 409) {
-        const errData = await res.json();
-        throw new Error(errData.detail || "Optimistic lock conflict: Settings modified by another administrator.");
+        const errData = await res.json().catch(() => null);
+        throw new Error(getApiErrorMessage(errData, "Optimistic lock conflict: Settings modified by another administrator."));
       }
 
       if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.detail || "Failed to update system settings.");
+        const errData = await res.json().catch(() => null);
+        throw new Error(getApiErrorMessage(errData, "Failed to update system settings."));
       }
 
       notify("Operational reconciliation rules updated successfully!", "success");
       onSaved();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      notify(msg || "An error occurred while saving system settings.", "error");
+      const msg = getApiErrorMessage(err, "An error occurred while saving system settings.");
+      notify(msg, "error");
     } finally {
       setSaving(false);
     }

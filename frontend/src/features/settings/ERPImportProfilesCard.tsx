@@ -11,6 +11,7 @@ import {
   SourceFormat,
 } from "@/types/import_profile";
 import { fetchWithAuth } from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/errors";
 import { useToast } from "@/components/ToastProvider";
 import {
   FileSpreadsheet,
@@ -255,13 +256,13 @@ function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditM
 
       const profileParam = profileToEdit?.id ? `&profile_id=${profileToEdit.id}` : "";
       const res = await fetchWithAuth(`/import-profiles/preview?module=${formModule}${profileParam}`, { method: "POST", body: formData });
-      if (!res.ok) { const err = await res.json(); throw new Error(err.detail || "Preview failed."); }
+      if (!res.ok) { const err = await res.json().catch(() => null); throw new Error(getApiErrorMessage(err, "Preview failed.")); }
       const data: MappingPreviewResponse = await res.json();
       setPreviewData(data);
       if (data.detected_headers.length > 0) setDetectedHeaders(data.detected_headers);
       notify(`Preview: ${data.total_rows_detected} rows detected.`, "success");
     } catch (err: unknown) {
-      notify(err instanceof Error ? err.message : "Preview error.", "error");
+      notify(getApiErrorMessage(err, "Preview error."), "error");
     } finally { setPreviewing(false); }
   };
 
@@ -298,12 +299,12 @@ function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditM
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) { const errData = await res.json(); throw new Error(errData.detail || "Failed to save profile."); }
+      if (!res.ok) { const errData = await res.json().catch(() => null); throw new Error(getApiErrorMessage(errData, "Failed to save profile.")); }
       notify(profileToEdit ? "Profile updated!" : "Profile created!", "success");
       onSaved();
       onClose();
     } catch (err: unknown) {
-      notify(err instanceof Error ? err.message : "Error saving profile.", "error");
+      notify(getApiErrorMessage(err, "Error saving profile."), "error");
     } finally { setSaving(false); }
   };
 
