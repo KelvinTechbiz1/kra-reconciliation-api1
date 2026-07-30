@@ -109,30 +109,22 @@ function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditM
   const [formFormat, setFormFormat] = useState<SourceFormat>(profileToEdit?.source_format || "csv");
   const [isDefault, setIsDefault] = useState(profileToEdit?.is_default || false);
 
-  // Helper to extract aliases for UI display and editing
-  // Returns comma-separated string of all aliases for the text input
-  const getAliasesString = (val: string[] | string | undefined): string => {
+  // Helper to extract primary column header for UI display and editing
+  const getMappedString = (val: string[] | string | undefined): string => {
     if (!val) return "";
-    if (Array.isArray(val)) return val.join(", ");
+    if (Array.isArray(val)) return val[0] || "";
     return String(val);
   };
 
-  // Helper to parse comma-separated alias string back to array
-  const parseAliasesArray = (s: string): string[] => {
-    const trimmed = s.trim();
-    if (!trimmed) return [];
-    return trimmed.split(",").map(a => a.trim()).filter(a => a.length > 0);
-  };
-
   // Column Mappings
-  const [pinAlias, setPinAlias] = useState(getAliasesString(profileToEdit?.column_mapping.pin));
-  const [partnerAlias, setPartnerAlias] = useState(getAliasesString(profileToEdit?.column_mapping.partner_name));
-  const [invNumAlias, setInvNumAlias] = useState(getAliasesString(profileToEdit?.column_mapping.invoice_number));
-  const [invDateAlias, setInvDateAlias] = useState(getAliasesString(profileToEdit?.column_mapping.invoice_date));
-  const [cuNumAlias, setCuNumAlias] = useState(getAliasesString(profileToEdit?.column_mapping.cu_number));
-  const [vatGroupAlias, setVatGroupAlias] = useState(getAliasesString(profileToEdit?.column_mapping.vat_group));
-  const [baseAmtAlias, setBaseAmtAlias] = useState(getAliasesString(profileToEdit?.column_mapping.base_amount));
-  const [taxAmtAlias, setTaxAmtAlias] = useState(getAliasesString(profileToEdit?.column_mapping.tax_amount));
+  const [pinAlias, setPinAlias] = useState(getMappedString(profileToEdit?.column_mapping.pin));
+  const [partnerAlias, setPartnerAlias] = useState(getMappedString(profileToEdit?.column_mapping.partner_name));
+  const [invNumAlias, setInvNumAlias] = useState(getMappedString(profileToEdit?.column_mapping.invoice_number));
+  const [invDateAlias, setInvDateAlias] = useState(getMappedString(profileToEdit?.column_mapping.invoice_date));
+  const [cuNumAlias, setCuNumAlias] = useState(getMappedString(profileToEdit?.column_mapping.cu_number));
+  const [vatGroupAlias, setVatGroupAlias] = useState(getMappedString(profileToEdit?.column_mapping.vat_group));
+  const [baseAmtAlias, setBaseAmtAlias] = useState(getMappedString(profileToEdit?.column_mapping.base_amount));
+  const [taxAmtAlias, setTaxAmtAlias] = useState(getMappedString(profileToEdit?.column_mapping.tax_amount));
   const [vatDerivationEnabled, setVatDerivationEnabled] = useState(profileToEdit?.validation_rules.vat_derivation_enabled || false);
 
   // Active Focused Alias Input
@@ -192,16 +184,19 @@ function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditM
   };
 
   const buildColumnMapping = () => {
-    const formatAliases = (s: string) => parseAliasesArray(s);
+    const formatValue = (s: string): string[] => {
+      const trimmed = s.trim();
+      return trimmed ? [trimmed] : [];
+    };
     return {
-      pin: formatAliases(pinAlias),
-      partner_name: formatAliases(partnerAlias),
-      invoice_number: formatAliases(invNumAlias),
-      invoice_date: formatAliases(invDateAlias),
-      cu_number: formatAliases(cuNumAlias),
-      vat_group: formatAliases(vatGroupAlias),
-      base_amount: formatAliases(baseAmtAlias),
-      tax_amount: formatAliases(taxAmtAlias),
+      pin: formatValue(pinAlias),
+      partner_name: formatValue(partnerAlias),
+      invoice_number: formatValue(invNumAlias),
+      invoice_date: formatValue(invDateAlias),
+      cu_number: formatValue(cuNumAlias),
+      vat_group: formatValue(vatGroupAlias),
+      base_amount: formatValue(baseAmtAlias),
+      tax_amount: formatValue(taxAmtAlias),
     };
   };
 
@@ -444,7 +439,7 @@ function AddEditImportProfileModal({ profileToEdit, onClose, onSaved }: AddEditM
                       </select>
                     ) : (
                       <input type="text" value={value} onChange={(e) => set(e.target.value)}
-                        placeholder={required ? "Required (comma-separate for multiple)" : "Optional (comma-separate for multiple)"}
+                        placeholder={required ? "e.g. CU Number" : "Optional column header"}
                         className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-900 text-[11px] font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
                     )}
                   </div>
@@ -644,16 +639,14 @@ function ViewImportProfileModal({ profile, onClose, onEdit }: ViewModalProps) {
           <div className="space-y-2">
             <h4 className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">Column Mapping</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono text-[11px]">
-              {Object.entries(profile.column_mapping).map(([field, aliases]) => {
-                const aliasList = Array.isArray(aliases) ? aliases.filter(a => a) : (aliases ? [String(aliases)] : []);
+              {Object.entries(profile.column_mapping).map(([field, val]) => {
+                const mappedVal = Array.isArray(val) ? val[0] : (val ? String(val) : "");
                 return (
                   <div key={field} className="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
                     <div className="font-sans font-semibold text-slate-700 uppercase text-[10px] tracking-wider mb-1">{field.replace(/_/g, " ")}</div>
-                    <div className="flex flex-wrap gap-1">
-                      {aliasList.length > 0 ? (
-                        aliasList.map((a, i) => (
-                          <span key={i} className="px-2 py-0.5 bg-white border border-slate-300 rounded text-slate-800 text-[11px] font-semibold">{a}</span>
-                        ))
+                    <div>
+                      {mappedVal ? (
+                        <span className="px-2 py-0.5 bg-white border border-slate-300 rounded text-slate-800 text-[11px] font-semibold">{mappedVal}</span>
                       ) : <span className="text-slate-400 font-sans italic text-[10px]">Unmapped</span>}
                     </div>
                   </div>

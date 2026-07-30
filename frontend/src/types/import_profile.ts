@@ -14,14 +14,14 @@ export interface ParsingHints {
 }
 
 export interface CanonicalColumnMapping {
-  pin: string[];
-  partner_name: string[];
-  invoice_number: string[];
-  invoice_date: string[];
-  cu_number: string[];
-  vat_group: string[];
-  base_amount: string[];
-  tax_amount: string[];
+  pin: string | string[];
+  partner_name: string | string[];
+  invoice_number: string | string[];
+  invoice_date: string | string[];
+  cu_number: string | string[];
+  vat_group: string | string[];
+  base_amount: string | string[];
+  tax_amount: string | string[];
 }
 
 export interface SalesValidationRules {

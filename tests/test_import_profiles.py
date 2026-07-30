@@ -56,7 +56,7 @@ def test_create_and_update_import_profile(db_session):
         description="Test profile",
         source_format=SourceFormat.CSV,
         parsing_hints=ParsingHintsSchema(),
-        column_mapping=CanonicalColumnMappingSchema(pin=["Customer Tax PIN", "PIN"]),
+        column_mapping=CanonicalColumnMappingSchema(pin=["Customer Tax PIN"]),
         validation_rules=SalesValidationRulesSchema(),
         is_default=True,
     )

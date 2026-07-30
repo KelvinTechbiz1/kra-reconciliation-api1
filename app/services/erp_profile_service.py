@@ -26,13 +26,14 @@ DEFAULT_BUILTIN_PROFILES = [
         "source_format": SourceFormat.CSV,
         "parsing_hints": ParsingHintsSchema(has_header=True, header_row=1, data_start_row=2, delimiter=",").model_dump(),
         "column_mapping": CanonicalColumnMappingSchema(
-            pin=["Customer PIN", "GST/VAT PIN", "PIN", "Tax Number"],
-            partner_name=["Customer Name", "Customer", "Client Name"],
-            invoice_number=["Invoice Number", "Invoice No", "Invoice #", "DocNum"],
-            invoice_date=["Invoice Date", "Date"],
-            cu_number=["CU Number", "ETR Number", "Control Unit No", "CU Serial"],
-            vat_group=["Tax Rate", "VAT Code", "VAT Group", "Tax Type"],
-            base_amount=["SubTotal", "Taxable Amount", "Base Amount", "Amount"],
+            pin=["Customer PIN"],
+            partner_name=["Customer Name"],
+            invoice_number=["Invoice Number"],
+            invoice_date=["Invoice Date"],
+            cu_number=["CU Number"],
+            vat_group=["Tax Rate"],
+            base_amount=["SubTotal"],
+            tax_amount=["Tax Amount"],
         ).model_dump(),
         "validation_rules": SalesValidationRulesSchema().model_dump(),
         "is_builtin": True,
@@ -46,14 +47,14 @@ DEFAULT_BUILTIN_PROFILES = [
         "source_format": SourceFormat.CSV,
         "parsing_hints": ParsingHintsSchema(has_header=True, header_row=1, data_start_row=2, delimiter=",").model_dump(),
         "column_mapping": CanonicalColumnMappingSchema(
-            pin=["Vendor PIN", "Supplier PIN", "GST/VAT PIN", "Tax Number"],
-            partner_name=["Vendor Name", "Supplier Name", "Vendor", "Supplier"],
-            invoice_number=["Bill Number", "Bill No", "Bill#", "Invoice Number", "Invoice No"],
-            invoice_date=["Bill Date", "Invoice Date", "Date"],
-            cu_number=["CU Number", "ETR Number", "Control Unit No", "Bill#", "Bill Number"],
-            vat_group=["Tax Rate", "VAT Code", "VAT Group"],
-            base_amount=["SubTotal", "Taxable Amount", "Base Amount", "Amount", "Amount Without Tax"],
-            tax_amount=["Tax Amount", "VAT Amount", "Tax"],
+            pin=["Vendor PIN"],
+            partner_name=["Vendor Name"],
+            invoice_number=["Bill Number"],
+            invoice_date=["Bill Date"],
+            cu_number=["CU Number"],
+            vat_group=["Tax Rate"],
+            base_amount=["SubTotal"],
+            tax_amount=["Tax Amount"],
         ).model_dump(),
         "validation_rules": PurchasesValidationRulesSchema(vat_derivation_enabled=True).model_dump(),
         "is_builtin": True,
@@ -67,13 +68,14 @@ DEFAULT_BUILTIN_PROFILES = [
         "source_format": SourceFormat.CSV,
         "parsing_hints": ParsingHintsSchema(has_header=True, header_row=1, data_start_row=2, delimiter=",").model_dump(),
         "column_mapping": CanonicalColumnMappingSchema(
-            pin=["Tax Reg No", "Customer Tax PIN", "PIN"],
-            partner_name=["Customer", "Customer Name"],
-            invoice_number=["No.", "Invoice No", "Doc Number"],
-            invoice_date=["Date", "Transaction Date", "Invoice Date"],
-            cu_number=["CU Number", "ETR No", "Memo"],
-            vat_group=["Tax Code", "Tax Rate"],
-            base_amount=["Amount", "Subtotal", "Taxable Amount"],
+            pin=["Tax Reg No"],
+            partner_name=["Customer"],
+            invoice_number=["No."],
+            invoice_date=["Date"],
+            cu_number=["CU Number"],
+            vat_group=["Tax Code"],
+            base_amount=["Amount"],
+            tax_amount=["Tax Amount"],
         ).model_dump(),
         "validation_rules": SalesValidationRulesSchema().model_dump(),
         "is_builtin": True,
@@ -87,13 +89,14 @@ DEFAULT_BUILTIN_PROFILES = [
         "source_format": SourceFormat.CSV,
         "parsing_hints": ParsingHintsSchema(has_header=True, header_row=1, data_start_row=2, delimiter=",").model_dump(),
         "column_mapping": CanonicalColumnMappingSchema(
-            pin=["Customer PIN", "PIN"],
-            partner_name=["Customer Name", "Customer"],
-            invoice_number=["Invoice Number", "Invoice No"],
-            invoice_date=["Invoice Date", "Date"],
-            cu_number=["CU Number", "ETR Number"],
-            vat_group=["VAT Group", "Tax Rate"],
-            base_amount=["Base Amount", "Taxable Amount"],
+            pin=["Customer PIN"],
+            partner_name=["Customer Name"],
+            invoice_number=["Invoice Number"],
+            invoice_date=["Invoice Date"],
+            cu_number=["CU Number"],
+            vat_group=["VAT Group"],
+            base_amount=["Base Amount"],
+            tax_amount=["Tax Amount"],
         ).model_dump(),
         "validation_rules": SalesValidationRulesSchema().model_dump(),
         "is_builtin": True,
@@ -107,14 +110,14 @@ DEFAULT_BUILTIN_PROFILES = [
         "source_format": SourceFormat.CSV,
         "parsing_hints": ParsingHintsSchema(has_header=True, header_row=1, data_start_row=2, delimiter=",").model_dump(),
         "column_mapping": CanonicalColumnMappingSchema(
-            pin=["Supplier PIN", "Vendor PIN", "PIN"],
-            partner_name=["Supplier Name", "Vendor Name", "Supplier", "Vendor"],
-            invoice_number=["Invoice Number", "Invoice No", "Bill#", "Bill Number"],
-            invoice_date=["Invoice Date", "Bill Date", "Date"],
-            cu_number=["CU Number", "ETR Number", "Bill#", "Bill Number"],
-            vat_group=["VAT Group", "Tax Rate", "Tax Rate / Group"],
-            base_amount=["Base Amount", "Taxable Amount", "Amount Without Tax", "Amount"],
-            tax_amount=["Tax Amount", "VAT Amount"],
+            pin=["Supplier PIN"],
+            partner_name=["Supplier Name"],
+            invoice_number=["Invoice Number"],
+            invoice_date=["Invoice Date"],
+            cu_number=["CU Number"],
+            vat_group=["VAT Group"],
+            base_amount=["Base Amount"],
+            tax_amount=["Tax Amount"],
         ).model_dump(),
         "validation_rules": PurchasesValidationRulesSchema(vat_derivation_enabled=True).model_dump(),
         "is_builtin": True,
@@ -140,12 +143,12 @@ BILL_DETAILS_PROFILE = {
     "column_mapping": CanonicalColumnMappingSchema(
         pin=[],
         partner_name=["Vendor Name"],
-        invoice_number=["Bill#", "Bill No", "Bill Number"],
+        invoice_number=["Bill#"],
         invoice_date=["Bill Date"],
         cu_number=[],
         vat_group=[],
-        base_amount=["Amount Without Tax", "Taxable Amount", "Base Amount"],
-        tax_amount=["Tax Amount", "VAT Amount"],
+        base_amount=["Amount Without Tax"],
+        tax_amount=["Tax Amount"],
     ).model_dump(),
     "validation_rules": PurchasesValidationRulesSchema(
         required_fields=["base_amount"],
@@ -165,15 +168,6 @@ class ERPProfileService:
         except Exception:
             pass
 
-        # Track which modules already have a default profile
-        modules_with_default = set()
-        existing_defaults = db.query(ImportProfile.module).filter(
-            ImportProfile.is_default == True,
-            ImportProfile.is_active == True,
-        ).all()
-        for (mod,) in existing_defaults:
-            modules_with_default.add(mod)
-
         for item in DEFAULT_BUILTIN_PROFILES:
             existing = db.query(ImportProfile).filter(
                 ImportProfile.scope == ProfileScope.BUILTIN,
@@ -184,12 +178,8 @@ class ERPProfileService:
                 existing.column_mapping = item["column_mapping"]
                 existing.parsing_hints = item["parsing_hints"]
                 existing.validation_rules = item["validation_rules"]
+                existing.is_default = item["is_default"]
             else:
-                # Only set default if no default exists yet for this module
-                should_default = item["is_default"] and item["module"] not in modules_with_default
-                if should_default:
-                    modules_with_default.add(item["module"])
-
                 profile = ImportProfile(
                     company_id=None,
                     scope=ProfileScope.BUILTIN,
@@ -202,7 +192,7 @@ class ERPProfileService:
                     column_mapping=item["column_mapping"],
                     validation_rules=item["validation_rules"],
                     is_builtin=True,
-                    is_default=should_default,
+                    is_default=item["is_default"],
                     is_active=True,
                     version=1,
                 )
@@ -238,7 +228,18 @@ class ERPProfileService:
             created_ts = -p.created_at.timestamp() if p.created_at else 0
             return (is_company_default, is_company, created_ts)
 
-        return sorted(profiles, key=sort_key)
+        sorted_list = sorted(profiles, key=sort_key)
+
+        # Enforce ONLY 1 default profile per module in the output
+        defaults_seen = set()
+        for p in sorted_list:
+            if p.is_default:
+                if p.module in defaults_seen:
+                    p.is_default = False
+                else:
+                    defaults_seen.add(p.module)
+
+        return sorted_list
 
     @classmethod
     def get_profile(cls, db: Session, profile_id: int, company_id: Optional[int] = None) -> Optional[ImportProfile]:
@@ -262,7 +263,7 @@ class ERPProfileService:
 
         if payload.is_default:
             db.query(ImportProfile).filter(
-                ImportProfile.company_id == company_id,
+                (ImportProfile.company_id == company_id) | (ImportProfile.scope == ProfileScope.BUILTIN),
                 ImportProfile.module == payload.module,
             ).update({"is_default": False}, synchronize_session=False)
 
@@ -349,8 +350,9 @@ class ERPProfileService:
             profile.validation_rules = payload.validation_rules.model_dump()
 
         if payload.is_default is True:
+            filter_clause = (ImportProfile.company_id == target_company_id) | (ImportProfile.scope == ProfileScope.BUILTIN) if target_company_id else (ImportProfile.scope == ProfileScope.BUILTIN)
             db.query(ImportProfile).filter(
-                ImportProfile.company_id == target_company_id,
+                filter_clause,
                 ImportProfile.module == effective_module,
                 ImportProfile.id != profile_id,
             ).update({"is_default": False}, synchronize_session=False)
@@ -381,13 +383,19 @@ class ERPProfileService:
 
             target_company_id = profile.company_id or company_id
 
-            # Clear previous defaults for this company & module only
-            db.query(ImportProfile).filter(
-                ImportProfile.company_id == target_company_id,
-                ImportProfile.module == profile.module,
-                ImportProfile.id != profile_id,
-                ImportProfile.is_active == True,
-            ).update({"is_default": False}, synchronize_session=False)
+            if target_company_id:
+                db.query(ImportProfile).filter(
+                    (ImportProfile.company_id == target_company_id) | (ImportProfile.scope == ProfileScope.BUILTIN),
+                    ImportProfile.module == profile.module,
+                    ImportProfile.id != profile_id,
+                    ImportProfile.is_active == True,
+                ).update({"is_default": False}, synchronize_session=False)
+            else:
+                db.query(ImportProfile).filter(
+                    ImportProfile.module == profile.module,
+                    ImportProfile.id != profile_id,
+                    ImportProfile.is_active == True,
+                ).update({"is_default": False}, synchronize_session=False)
 
             profile.is_default = True
 
