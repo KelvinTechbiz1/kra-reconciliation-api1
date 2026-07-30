@@ -204,7 +204,17 @@ def reconcile_invoices(
             sap_norm.tax_breakdown, kra_norm.tax_breakdown, amount_tolerance
         )
 
+        cu_match = (sap_norm.cu_number == kra_norm.cu_number)
+
         differences: list[Difference] = []
+        if not cu_match:
+            differences.append(Difference(
+                field=DifferenceField.CU_NUMBER,
+                match=False,
+                sap_value=sap_norm.cu_number,
+                kra_value=kra_norm.cu_number
+            ))
+
         if not amount_match:
             differences.append(Difference(
                 field=DifferenceField.BASE_AMOUNT,
@@ -221,10 +231,14 @@ def reconcile_invoices(
             ))
 
         # Stage 7: Status Classification
-        if not amount_match:
+        if len(differences) > 1:
+            status = ReconciliationStatus.MULTIPLE_MISMATCHES
+        elif not amount_match:
             status = ReconciliationStatus.AMOUNT_MISMATCH
         elif not vat_breakdown_match:
             status = ReconciliationStatus.VAT_MISMATCH
+        elif not cu_match:
+            status = ReconciliationStatus.VAT_MISMATCH  # route to 02 Exceptions.xlsx for CU review
         else:
             status = ReconciliationStatus.MATCH
 
