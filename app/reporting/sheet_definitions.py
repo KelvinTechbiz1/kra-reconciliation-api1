@@ -82,7 +82,7 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
             SheetDefinition(
                 title="Missing CU Number",
                 columns=(
-                    _CU_COL, _INVOICE_TYPE_COL, _AMOUNT_MATCH_COL, _VAT_MATCH_COL,
+                    _CU_COL,
                     _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_16, _SAP_8, _SAP_0, _SAP_EXEMPT,
                     _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_16, _KRA_8, _KRA_0, _KRA_EXEMPT,
                 ),
@@ -91,7 +91,7 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
             SheetDefinition(
                 title="Missing in SAP",
                 columns=(
-                    _CU_COL, _INVOICE_TYPE_COL, _AMOUNT_MATCH_COL, _VAT_MATCH_COL,
+                    _CU_COL,
                     _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_16, _KRA_8, _KRA_0, _KRA_EXEMPT,
                 ),
                 statuses=frozenset({ReconciliationStatus.MISSING_IN_SAP}),
@@ -100,7 +100,7 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
             SheetDefinition(
                 title="Missing in KRA",
                 columns=(
-                    _CU_COL, _INVOICE_TYPE_COL, _AMOUNT_MATCH_COL, _VAT_MATCH_COL,
+                    _CU_COL,
                     _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_16, _SAP_8, _SAP_0, _SAP_EXEMPT,
                 ),
                 statuses=frozenset({ReconciliationStatus.MISSING_IN_KRA}),
@@ -109,7 +109,7 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
             SheetDefinition(
                 title="Amount Mismatch",
                 columns=(
-                    _CU_COL, _INVOICE_TYPE_COL, _AMOUNT_MATCH_COL, _VAT_MATCH_COL,
+                    _CU_COL,
                     _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_16, _SAP_8, _SAP_0, _SAP_EXEMPT,
                     _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_16, _KRA_8, _KRA_0, _KRA_EXEMPT,
                 ),
@@ -118,7 +118,7 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
             SheetDefinition(
                 title="VAT Mismatch",
                 columns=(
-                    _CU_COL, _INVOICE_TYPE_COL, _AMOUNT_MATCH_COL, _VAT_MATCH_COL,
+                    _CU_COL,
                     _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_16, _SAP_8, _SAP_0, _SAP_EXEMPT,
                     _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_16, _KRA_8, _KRA_0, _KRA_EXEMPT,
                 ),
@@ -127,7 +127,7 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
             SheetDefinition(
                 title="Duplicate CU",
                 columns=(
-                    _CU_COL, _INVOICE_TYPE_COL, _AMOUNT_MATCH_COL, _VAT_MATCH_COL,
+                    _CU_COL,
                     _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_16, _SAP_8, _SAP_0, _SAP_EXEMPT,
                     _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_16, _KRA_8, _KRA_0, _KRA_EXEMPT,
                 ),
@@ -136,7 +136,7 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
             SheetDefinition(
                 title="Multiple Issues",
                 columns=(
-                    _CU_COL, _INVOICE_TYPE_COL, _AMOUNT_MATCH_COL, _VAT_MATCH_COL,
+                    _CU_COL,
                     _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_16, _SAP_8, _SAP_0, _SAP_EXEMPT,
                     _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_16, _KRA_8, _KRA_0, _KRA_EXEMPT,
                 ),
@@ -150,7 +150,7 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
             SheetDefinition(
                 title="Matches",
                 columns=(
-                    _CU_COL, _INVOICE_TYPE_COL, _AMOUNT_MATCH_COL, _VAT_MATCH_COL,
+                    _CU_COL,
                     _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_16, _SAP_8, _SAP_0, _SAP_EXEMPT,
                     _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_16, _KRA_8, _KRA_0, _KRA_EXEMPT,
                 ),
