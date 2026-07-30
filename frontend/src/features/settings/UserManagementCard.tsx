@@ -38,6 +38,7 @@ interface UserManagementCardProps {
   users: UserRecord[];
   companies?: CompanyProfile[];
   currentUserId: number;
+  currentUserRole: string;
   onSaved: () => void;
 }
 
@@ -81,11 +82,12 @@ function formatDate(iso: string | null): string {
 // --- Create User Modal ---
 interface CreateUserModalProps {
   companies: CompanyProfile[];
+  currentUserRole: string;
   onClose: () => void;
   onCreated: () => void;
 }
 
-function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps) {
+function CreateUserModal({ companies, currentUserRole, onClose, onCreated }: CreateUserModalProps) {
   const [mounted, setMounted] = useState(false);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -257,32 +259,38 @@ function CreateUserModal({ companies, onClose, onCreated }: CreateUserModalProps
                   >
                     <option value="checker">Checker</option>
                     <option value="company_admin">Company Admin</option>
-                    <option value="admin">Admin</option>
+                    {currentUserRole !== "company_admin" && <option value="admin">Admin</option>}
                   </select>
                 </div>
 
-                {/* Company Scope Selection */}
-                <div className="space-y-1.5 col-span-2">
-                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-slate-500" />
-                    Assigned Company Entity Scope
-                  </label>
-                  <select
-                    value={companyId}
-                    onChange={(e) => setCompanyId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-800 text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  >
-                    <option value="">Global Enterprise Scope (All Companies)</option>
-                    {companies.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} {c.kra_pin ? `(${c.kra_pin})` : ""}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="text-[11px] text-slate-500 block">
-                    Assigning a specific company restricts user activity to that entity only.
-                  </span>
-                </div>
+                {/* Company Scope Selection — locked to own company for company_admin */}
+                {currentUserRole !== "company_admin" ? (
+                  <div className="space-y-1.5 col-span-2">
+                    <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                      Assigned Company Entity Scope
+                    </label>
+                    <select
+                      value={companyId}
+                      onChange={(e) => setCompanyId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 h-10 rounded-lg border border-slate-200 bg-white text-slate-800 text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    >
+                      <option value="">Global Enterprise Scope (All Companies)</option>
+                      {companies.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} {c.kra_pin ? `(${c.kra_pin})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-[11px] text-slate-500 block">
+                      Assigning a specific company restricts user activity to that entity only.
+                    </span>
+                  </div>
+                ) : (
+                  <div className="col-span-2 bg-amber-50 border border-amber-200 rounded-lg px-3.5 py-2.5 text-xs text-amber-800">
+                    Users will be created under your company scope automatically.
+                  </div>
+                )}
               </div>
             </form>
             <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50 shrink-0">
@@ -550,11 +558,12 @@ function DeleteUserModal({ user, onClose, onDeleted }: DeleteUserModalProps) {
 interface EditUserRowProps {
   user: UserRecord;
   companies: CompanyProfile[];
+  currentUserRole: string;
   onSaved: () => void;
   onCancel: () => void;
 }
 
-function EditUserRow({ user, companies, onSaved, onCancel }: EditUserRowProps) {
+function EditUserRow({ user, companies, currentUserRole, onSaved, onCancel }: EditUserRowProps) {
   const [username, setUsername] = useState(user.username);
   const [role, setRole] = useState<UserRole>(user.role as UserRole);
   const [email, setEmail] = useState(user.email || "");
@@ -594,7 +603,7 @@ function EditUserRow({ user, companies, onSaved, onCancel }: EditUserRowProps) {
 
   return (
     <tr className="bg-blue-50/40 border-t border-blue-100">
-      <td className="px-5 py-4" colSpan={6}>
+      <td className="px-5 py-4" colSpan={currentUserRole === "company_admin" ? 5 : 6}>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-3">
           <div className="space-y-1">
             <label className="text-[10px] font-semibold text-slate-600 uppercase">Username *</label>
@@ -632,24 +641,33 @@ function EditUserRow({ user, companies, onSaved, onCancel }: EditUserRowProps) {
               className="w-full px-3 py-1.5 h-9 rounded-md border border-slate-200 bg-white text-xs text-slate-800 font-medium cursor-pointer focus:outline-none focus:border-blue-500"
             >
               <option value="checker">Checker</option>
-              <option value="admin">Admin</option>
+              <option value="company_admin">Company Admin</option>
+              {currentUserRole !== "company_admin" && <option value="admin">Admin</option>}
             </select>
           </div>
-          <div className="space-y-1">
-            <label className="text-[10px] font-semibold text-slate-600 uppercase">Company Entity Scope</label>
-            <select
-              value={companyId}
-              onChange={(e) => setCompanyId(e.target.value)}
-              className="w-full px-3 py-1.5 h-9 rounded-md border border-slate-200 bg-white text-xs text-slate-800 font-medium cursor-pointer focus:outline-none focus:border-blue-500"
-            >
-              <option value="">Global Enterprise Scope</option>
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {currentUserRole !== "company_admin" ? (
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold text-slate-600 uppercase">Company Entity Scope</label>
+              <select
+                value={companyId}
+                onChange={(e) => setCompanyId(e.target.value)}
+                className="w-full px-3 py-1.5 h-9 rounded-md border border-slate-200 bg-white text-xs text-slate-800 font-medium cursor-pointer focus:outline-none focus:border-blue-500"
+              >
+                <option value="">Global Enterprise Scope</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="space-y-1 flex items-end">
+              <div className="w-full px-3 py-1.5 h-9 rounded-md border border-amber-200 bg-amber-50 text-xs text-amber-800 flex items-center">
+                Locked to your company
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex gap-2">
           <button
@@ -673,7 +691,7 @@ function EditUserRow({ user, companies, onSaved, onCancel }: EditUserRowProps) {
 }
 
 // --- Main User Management Workspace Component ---
-export function UserManagementCard({ users, companies = [], currentUserId, onSaved }: UserManagementCardProps) {
+export function UserManagementCard({ users, companies = [], currentUserId, currentUserRole, onSaved }: UserManagementCardProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string>("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -758,6 +776,7 @@ export function UserManagementCard({ users, companies = [], currentUserId, onSav
       {showCreateModal && (
         <CreateUserModal
           companies={companies}
+          currentUserRole={currentUserRole}
           onClose={() => setShowCreateModal(false)}
           onCreated={onSaved}
         />
@@ -816,22 +835,24 @@ export function UserManagementCard({ users, companies = [], currentUserId, onSav
             />
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-            <Building2 className="w-4 h-4 text-slate-400 shrink-0 hidden sm:block" />
-            <select
-              value={selectedCompanyFilter}
-              onChange={(e) => setSelectedCompanyFilter(e.target.value)}
-              className="w-full sm:w-56 px-3 py-2 h-10 rounded-lg border border-slate-200 bg-white text-slate-800 text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-            >
-              <option suppressHydrationWarning value="all">All Entity Scopes ({users.length})</option>
-              <option value="global">Global Enterprise Scope</option>
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {currentUserRole !== "company_admin" && (
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+              <Building2 className="w-4 h-4 text-slate-400 shrink-0 hidden sm:block" />
+              <select
+                value={selectedCompanyFilter}
+                onChange={(e) => setSelectedCompanyFilter(e.target.value)}
+                className="w-full sm:w-56 px-3 py-2 h-10 rounded-lg border border-slate-200 bg-white text-slate-800 text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              >
+                <option suppressHydrationWarning value="all">All Entity Scopes ({users.length})</option>
+                <option value="global">Global Enterprise Scope</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Directory Table */}
@@ -841,7 +862,7 @@ export function UserManagementCard({ users, companies = [], currentUserId, onSav
               <tr>
                 <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">User Account</th>
                 <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Role Access</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Company Scope</th>
+                {currentUserRole !== "company_admin" && <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Company Scope</th>}
                 <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
                 <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Last Activity</th>
                 <th className="px-5 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
@@ -893,19 +914,21 @@ export function UserManagementCard({ users, companies = [], currentUserId, onSav
                       </td>
 
                       {/* Company Scope Column */}
-                      <td className="px-5 py-3.5">
-                        {assignedCompany ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
-                            <Building2 className="w-3 h-3 text-blue-600 shrink-0" />
-                            {assignedCompany.name}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                            <Globe className="w-3 h-3 text-slate-500 shrink-0" />
-                            All
-                          </span>
-                        )}
-                      </td>
+                      {currentUserRole !== "company_admin" && (
+                        <td className="px-5 py-3.5">
+                          {assignedCompany ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
+                              <Building2 className="w-3 h-3 text-blue-600 shrink-0" />
+                              {assignedCompany.name}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                              <Globe className="w-3 h-3 text-slate-500 shrink-0" />
+                              All
+                            </span>
+                          )}
+                        </td>
+                      )}
 
                       {/* Status Column */}
                       <td className="px-5 py-3.5">
@@ -980,6 +1003,7 @@ export function UserManagementCard({ users, companies = [], currentUserId, onSav
                         key={`edit-${user.id}`}
                         user={user}
                         companies={companies}
+                        currentUserRole={currentUserRole}
                         onSaved={() => {
                           setEditingId(null);
                           onSaved();
@@ -993,7 +1017,7 @@ export function UserManagementCard({ users, companies = [], currentUserId, onSav
 
               {filteredUsers.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-slate-400 text-sm">
+                  <td colSpan={currentUserRole === "company_admin" ? 5 : 6} className="px-5 py-12 text-center text-slate-400 text-sm">
                     No team accounts found matching your filter criteria.
                   </td>
                 </tr>

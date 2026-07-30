@@ -415,6 +415,7 @@ export default function SettingsPage() {
               users={users}
               companies={companies}
               currentUserId={currentUserId ?? 0}
+              currentUserRole={currentUserRole}
               onSaved={handleCompanySaved}
             />
           )}
