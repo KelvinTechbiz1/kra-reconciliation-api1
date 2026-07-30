@@ -30,6 +30,9 @@ class WorkbookDefinition:
 
 # Reusable column sets
 _CU_COL = SheetColumn(header="CU Number", attr="cu_number", is_cu=True, width=22)
+_INVOICE_TYPE_COL = SheetColumn(header="Invoice Type", attr="invoice_type", width=14)
+_AMOUNT_MATCH_COL = SheetColumn(header="Amount Match", attr="amount_match_symbol", width=14)
+_VAT_MATCH_COL = SheetColumn(header="VAT Breakdown Match", attr="vat_match_symbol", width=18)
 _REMARK_COL = SheetColumn(header="Remark", attr="remark", width=20)
 
 _SAP_PIN = SheetColumn(header="SAP PIN", attr="sap_pin", width=18)
@@ -45,7 +48,6 @@ _KRA_INV_NUM = SheetColumn(header="KRA Invoice #", attr="kra_invoice_number", wi
 _KRA_DATE = SheetColumn(header="KRA Date", attr="kra_invoice_date", is_date=True, width=14)
 _KRA_AMOUNT = SheetColumn(header="KRA Amount", attr="kra_base_amount", is_amount=True, width=18)
 _KRA_VAT = SheetColumn(header="KRA VAT", attr="kra_vat_group", width=12)
-
 
 
 NEEDS_REVIEW_STATUSES = frozenset({
@@ -72,7 +74,7 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
             SheetDefinition(
                 title="Missing CU Number",
                 columns=(
-                    _CU_COL,
+                    _CU_COL, _INVOICE_TYPE_COL, _AMOUNT_MATCH_COL, _VAT_MATCH_COL,
                     _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT,
                     _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT,
                 ),
@@ -81,7 +83,7 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
             SheetDefinition(
                 title="Missing in SAP",
                 columns=(
-                    _CU_COL,
+                    _CU_COL, _INVOICE_TYPE_COL, _AMOUNT_MATCH_COL, _VAT_MATCH_COL,
                     _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT,
                 ),
                 statuses=frozenset({ReconciliationStatus.MISSING_IN_SAP}),
@@ -90,7 +92,7 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
             SheetDefinition(
                 title="Missing in KRA",
                 columns=(
-                    _CU_COL,
+                    _CU_COL, _INVOICE_TYPE_COL, _AMOUNT_MATCH_COL, _VAT_MATCH_COL,
                     _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT,
                 ),
                 statuses=frozenset({ReconciliationStatus.MISSING_IN_KRA}),
@@ -99,7 +101,7 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
             SheetDefinition(
                 title="Amount Mismatch",
                 columns=(
-                    _CU_COL,
+                    _CU_COL, _INVOICE_TYPE_COL, _AMOUNT_MATCH_COL, _VAT_MATCH_COL,
                     _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT,
                     _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT,
                 ),
@@ -108,17 +110,16 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
             SheetDefinition(
                 title="VAT Mismatch",
                 columns=(
-                    _CU_COL,
+                    _CU_COL, _INVOICE_TYPE_COL, _AMOUNT_MATCH_COL, _VAT_MATCH_COL,
                     _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT,
                     _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT,
                 ),
                 statuses=frozenset({ReconciliationStatus.VAT_MISMATCH}),
             ),
-
             SheetDefinition(
                 title="Duplicate CU",
                 columns=(
-                    _CU_COL,
+                    _CU_COL, _INVOICE_TYPE_COL, _AMOUNT_MATCH_COL, _VAT_MATCH_COL,
                     _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT,
                     _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT,
                 ),
@@ -127,7 +128,7 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
             SheetDefinition(
                 title="Multiple Issues",
                 columns=(
-                    _CU_COL,
+                    _CU_COL, _INVOICE_TYPE_COL, _AMOUNT_MATCH_COL, _VAT_MATCH_COL,
                     _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT,
                     _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT,
                 ),
@@ -141,7 +142,7 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
             SheetDefinition(
                 title="Matches",
                 columns=(
-                    _CU_COL,
+                    _CU_COL, _INVOICE_TYPE_COL, _AMOUNT_MATCH_COL, _VAT_MATCH_COL,
                     _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT,
                     _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT,
                 ),

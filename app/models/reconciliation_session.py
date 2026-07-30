@@ -77,6 +77,7 @@ class SessionReconciliationResult(Base):
     session_id: Mapped[str] = mapped_column(String(36), ForeignKey("reconciliation_sessions.id", ondelete="CASCADE"), nullable=False)
     row_number: Mapped[int] = mapped_column(Integer, nullable=False)
     cu_number: Mapped[str] = mapped_column(String(100), nullable=False)
+    invoice_type: Mapped[str | None] = mapped_column(String(50), nullable=True, default="Single Tax")
     status: Mapped[ReconciliationStatus] = mapped_column(Enum(ReconciliationStatus, native_enum=False), nullable=False)
     amount_match: Mapped[bool] = mapped_column(default=True, nullable=False)
     vat_match: Mapped[bool] = mapped_column(default=True, nullable=False)

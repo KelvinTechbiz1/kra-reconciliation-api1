@@ -5,6 +5,8 @@ from decimal import Decimal
 from app.domain.reconciliation_status import ReconciliationStatus
 
 
+from app.domain.invoice_type import InvoiceType
+
 @dataclass(frozen=True)
 class ReconciliationProjection:
     """Repository-layer projection of session_reconciliation_results.
@@ -14,6 +16,7 @@ class ReconciliationProjection:
     """
 
     cu_number:           str
+    invoice_type:        InvoiceType
     status:              ReconciliationStatus
     amount_match:        bool
     vat_match:           bool

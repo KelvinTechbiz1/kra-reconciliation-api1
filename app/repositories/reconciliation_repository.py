@@ -33,6 +33,9 @@ def get_projections(session_id: str, db: Session) -> list[ReconciliationProjecti
     return [_to_projection(r) for r in rows]
 
 
+from app.domain.invoice_type import InvoiceType
+
+
 def _to_projection(r: SessionReconciliationResult) -> ReconciliationProjection:
     """Explicit constructor — no reflection, compile-time field safety.
 
@@ -41,8 +44,12 @@ def _to_projection(r: SessionReconciliationResult) -> ReconciliationProjection:
     or migrated status aborts the export rather than silently producing wrong data.
     The ValueError propagates to the endpoint and returns HTTP 500.
     """
+    raw_type = getattr(r, "invoice_type", None) or "Single Tax"
+    inv_type = InvoiceType(raw_type) if raw_type in [e.value for e in InvoiceType] else InvoiceType.SINGLE_TAX
+
     return ReconciliationProjection(
         cu_number=r.cu_number,
+        invoice_type=inv_type,
         status=ReconciliationStatus(r.status),
         amount_match=r.amount_match,
         vat_match=r.vat_match,

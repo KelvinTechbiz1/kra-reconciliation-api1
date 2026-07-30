@@ -88,8 +88,10 @@ def fixture_auth_headers(client):
 # --- Unit tests for export_row ---
 
 def _make_projection(**overrides) -> ReconciliationProjection:
+    from app.domain.invoice_type import InvoiceType
     defaults = dict(
         cu_number="CU001",
+        invoice_type=InvoiceType.SINGLE_TAX,
         status=ReconciliationStatus.MATCH,
         amount_match=True,
         vat_match=True,

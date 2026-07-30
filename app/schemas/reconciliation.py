@@ -9,6 +9,7 @@ class DifferenceField(str, Enum):
     BASE_AMOUNT = "base_amount"
     VAT_GROUP = "vat_group"
     INVOICE_DATE = "invoice_date"
+    CU_NUMBER = "cu_number"
 
 class Difference(BaseModel):
     field: DifferenceField
@@ -16,11 +17,14 @@ class Difference(BaseModel):
     sap_value: str
     kra_value: str
 
+from app.domain.invoice_type import InvoiceType
+
 class ReconciliationResult(BaseModel):
     cu_number: str
     sap: Invoice | None = None
     kra: Invoice | None = None
     status: ReconciliationStatus
+    invoice_type: InvoiceType = InvoiceType.SINGLE_TAX
     amount_match: bool
     vat_match: bool
     date_match: bool

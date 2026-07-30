@@ -16,6 +16,7 @@ from app.schemas.reconciliation import (
 from app.domain.reconciliation_status import ReconciliationStatus
 from app.domain.reconciliation_constants import STATUS_PRIORITY
 from app.domain.normalized_invoice import NormalizedInvoice, normalize_and_group_invoices
+from app.domain.invoice_type import InvoiceType
 from app.services.normalization import normalize_partner_name, normalize_pin
 
 
@@ -151,7 +152,7 @@ def reconcile_invoices(
             kra_source_index=idx
         ))
 
-    # Stage 4: Document Pairing (by CU Number)
+    # Stage 4: Document Pairing (by CU Number & Fallback Heuristic)
     sap_map: Dict[str, NormalizedInvoice] = {norm.cu_number: norm for norm in sap_norm_list}
     kra_map: Dict[str, NormalizedInvoice] = {norm.cu_number: norm for norm in kra_norm_list}
 
@@ -159,10 +160,35 @@ def reconcile_invoices(
     sap_only_cus = set(sap_map.keys()) - set(kra_map.keys())
     kra_only_cus = set(kra_map.keys()) - set(sap_map.keys())
 
-    # Process Paired Documents (Stage 5, 6, 7)
+    # Stage 4b: Fallback Pairing for Minor CU Typos / OCR mismatches
+    paired_tuples: List[Tuple[str, NormalizedInvoice, NormalizedInvoice]] = []
     for cu in common_cus:
-        sap_norm = sap_map[cu]
-        kra_norm = kra_map[cu]
+        paired_tuples.append((cu, sap_map[cu], kra_map[cu]))
+
+    fallback_matched_sap: Set[str] = set()
+    fallback_matched_kra: Set[str] = set()
+
+    for s_cu in sorted(sap_only_cus):
+        s_norm = sap_map[s_cu]
+        for k_cu in sorted(kra_only_cus):
+            if k_cu in fallback_matched_kra:
+                continue
+            k_norm = kra_map[k_cu]
+
+            # Matching base amount within tolerance AND matching partner PIN or Name
+            if (s_norm.total_base * k_norm.total_base >= 0) and abs(s_norm.total_base - k_norm.total_base) <= amount_tolerance:
+                p_match = check_partner_name_matches(s_norm.partner_name, k_norm.partner_name) or check_pin_matches(s_norm.pin, k_norm.pin)
+                if p_match:
+                    fallback_matched_sap.add(s_cu)
+                    fallback_matched_kra.add(k_cu)
+                    paired_tuples.append((s_cu, s_norm, k_norm))
+                    break
+
+    sap_only_cus -= fallback_matched_sap
+    kra_only_cus -= fallback_matched_kra
+
+    # Process Paired Documents (Stage 5, 6, 7)
+    for cu, sap_norm, kra_norm in paired_tuples:
 
         # Stage 5: Document Validation Checks
         amount_match = (
@@ -202,11 +228,15 @@ def reconcile_invoices(
         else:
             status = ReconciliationStatus.MATCH
 
+        is_mixed = sap_norm.is_mixed_tax or kra_norm.is_mixed_tax
+        inv_type = InvoiceType.MIXED_TAX if is_mixed else InvoiceType.SINGLE_TAX
+
         results.append(ReconciliationResult(
             cu_number=cu,
             sap=sap_norm.representative_invoice,
             kra=kra_norm.representative_invoice,
             status=status,
+            invoice_type=inv_type,
             amount_match=amount_match,
             vat_match=vat_breakdown_match,
             date_match=date_match,
@@ -220,11 +250,13 @@ def reconcile_invoices(
     # Stage 7: Unpaired SAP Invoices
     for cu in sap_only_cus:
         sap_norm = sap_map[cu]
+        inv_type = InvoiceType.MIXED_TAX if sap_norm.is_mixed_tax else InvoiceType.SINGLE_TAX
         results.append(ReconciliationResult(
             cu_number=cu,
             sap=sap_norm.representative_invoice,
             kra=None,
             status=ReconciliationStatus.MISSING_IN_KRA,
+            invoice_type=inv_type,
             amount_match=False,
             vat_match=False,
             date_match=True,
@@ -238,11 +270,13 @@ def reconcile_invoices(
     # Stage 7: Unpaired KRA Invoices
     for cu in kra_only_cus:
         kra_norm = kra_map[cu]
+        inv_type = InvoiceType.MIXED_TAX if kra_norm.is_mixed_tax else InvoiceType.SINGLE_TAX
         results.append(ReconciliationResult(
             cu_number=cu,
             sap=None,
             kra=kra_norm.representative_invoice,
             status=ReconciliationStatus.MISSING_IN_SAP,
+            invoice_type=inv_type,
             amount_match=False,
             vat_match=False,
             date_match=True,

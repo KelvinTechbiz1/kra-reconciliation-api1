@@ -57,7 +57,7 @@ def compare_session_invoices(
             base_amount=i.base_amount,
             source=InvoiceSource(i.source)
         )
-        for i in invoices if i.source in [InvoiceSource.SAP, InvoiceSource.ERP]
+        for i in invoices if i.source != InvoiceSource.KRA and i.source != InvoiceSource.KRA.value
     ]
     
     kra_invoices = [

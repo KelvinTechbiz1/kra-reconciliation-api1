@@ -26,13 +26,22 @@ class NormalizedInvoice:
     first_source_index: int = 0
 
     @property
+    def is_mixed_tax(self) -> bool:
+        return len(self.tax_breakdown) > 1
+
+    @property
+    def invoice_type(self) -> "InvoiceType":
+        from app.domain.invoice_type import InvoiceType
+        return InvoiceType.MIXED_TAX if self.is_mixed_tax else InvoiceType.SINGLE_TAX
+
+    @property
     def representative_invoice(self) -> Invoice:
         """
         Returns a single Invoice schema object representing the accumulated logical invoice.
         Used for backward-compatibility with API schemas, DB persistence, and exporters.
         """
         first = self.source_rows[0] if self.source_rows else None
-        vat_grp = list(self.tax_breakdown.keys())[0] if len(self.tax_breakdown) == 1 else "MIXED"
+        vat_grp = ", ".join(sorted(self.tax_breakdown.keys())) if self.tax_breakdown else "16"
         return Invoice(
             pin=self.pin or (first.pin if first else ""),
             partner_name=self.partner_name or (first.partner_name if first else ""),
