@@ -1,6 +1,7 @@
 import datetime
 import time
 import logging
+import urllib.parse
 from typing import Any, Dict, Generator, List
 import httpx
 
@@ -206,10 +207,37 @@ class SAPClient:
             f"[ReconciliationSession: {reconciliation_session_id}] Fetching {endpoint_name} from SAP for range {from_date} to {to_date}"
         )
 
+        page_number = 0
+
         while next_url:
+            page_number += 1
             current_params = None
             if next_url == url:
                 current_params = params_with_select if use_select else params
+            else:
+                # SAP treats $top as a total result limit, decrementing it per page.
+                # Reset $top to the original page_size so pagination doesn't stop early.
+                if page_size:
+                    parsed = urllib.parse.urlparse(next_url)
+                    query_params = dict(urllib.parse.parse_qsl(parsed.query))
+                    if "$top" in query_params:
+                        query_params["$top"] = str(page_size)
+                        next_url = urllib.parse.urlunparse(
+                            parsed._replace(query=urllib.parse.urlencode(query_params))
+                        )
+
+            # Build the effective request URL for logging
+            req_url = next_url
+            if current_params:
+                parsed = urllib.parse.urlparse(next_url)
+                existing_params = dict(urllib.parse.parse_qsl(parsed.query))
+                merged = {**existing_params, **{k: v for k, v in current_params.items() if v is not None}}
+                req_url = urllib.parse.urlunparse(parsed._replace(query=urllib.parse.urlencode(merged)))
+
+            logger.info(
+                f"[ReconciliationSession: {reconciliation_session_id}] Pagination page {page_number}: "
+                f"GET {req_url}"
+            )
 
             try:
                 response = self._execute_request_with_retry(
@@ -248,6 +276,15 @@ class SAPClient:
 
             # Traverse @odata.nextLink exactly as returned by SAP
             next_link = data.get("odata.nextLink") or data.get("@odata.nextLink")
+
+            logger.info(
+                f"[ReconciliationSession: {reconciliation_session_id}] Pagination page {page_number} result: "
+                f"returned {len(documents_page)} rows, "
+                f"raw nextLink={next_link!r}, "
+                f"params=$top={params.get('$top', 'N/A')}, "
+                f"$select={'PRESENT' if use_select else 'ABSENT'}"
+            )
+
             if next_link:
                 if next_link.startswith("http"):
                     next_url = next_link
@@ -256,3 +293,8 @@ class SAPClient:
                     next_url = f"{self.base_url}/{next_link}"
             else:
                 next_url = None
+
+        logger.info(
+            f"[ReconciliationSession: {reconciliation_session_id}] Pagination complete: "
+            f"{endpoint_name} fetched {page_number} page(s)"
+        )

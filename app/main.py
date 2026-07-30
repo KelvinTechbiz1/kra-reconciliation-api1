@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -8,6 +9,13 @@ from app.core.config import get_settings
 from app.core.sap_client import SAPClient
 from app.core.exceptions import SAPConnectionError, SAPQueryError, SAPConfigurationError
 from app.reporting.registry import create_default_registry
+
+# Ensure application loggers (sap_client, invoice_service, etc.) propagate to console
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    force=True,
+)
 
 settings = get_settings()
 
