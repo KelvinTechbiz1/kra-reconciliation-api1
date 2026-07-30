@@ -84,7 +84,7 @@ def test_sap_client_get_invoices_pagination():
         "value": [{"DocNum": 101, "DocDate": "2026-03-02"}]
     }
 
-    def mock_request(method, url, params=None, cookies=None):
+    def mock_request(method, url, params=None, cookies=None, headers=None):
         if url == "https://sap-test:50000/b1s/v1/Invoices":
             return page1_response
         elif url == "https://sap-test:50000/b1s/v1/Invoices?$skip=1":
@@ -443,7 +443,7 @@ def test_sap_client_clone_session_isolation():
     assert cloned.client is not client.client
 
 
-def test_sap_client_get_documents_pages_top_param():
+def test_sap_client_get_documents_pages_sends_prefer_header():
     client = SAPClient()
     client.base_url = "https://sap-test:50000/b1s/v1"
     client.session_id = "active-session"
@@ -459,7 +459,9 @@ def test_sap_client_get_documents_pages_top_param():
         mock_exec.assert_called_once()
         _, kwargs = mock_exec.call_args
         params = kwargs.get("params", {})
-        assert params.get("$top") == "250"
+        headers = kwargs.get("headers", {})
+        assert "$top" not in params
+        assert headers.get("Prefer") == "odata.maxpagesize=250"
 
 
 def test_sap_page_size_setting_validation():

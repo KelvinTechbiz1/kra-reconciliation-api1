@@ -23,8 +23,9 @@ def fixture_db_session():
     Base.metadata.create_all(bind=engine)
     db = TestingSessionLocal()
     from app.models.settings import KRAVATMapping
-    db.add(KRAVATMapping(section_prefix="SEC_F", canonical_rate="16"))
-    db.commit()
+    if not db.query(KRAVATMapping).filter_by(section_prefix="SEC_F").first():
+        db.add(KRAVATMapping(section_prefix="SEC_F", canonical_rate="16"))
+        db.commit()
     try:
         yield db
     finally:

@@ -123,7 +123,8 @@ class SAPClient:
             self.login()
 
     def _execute_request_with_retry(
-        self, method: str, url: str, params: Dict[str, Any] = None, cookies: Dict[str, str] = None
+        self, method: str, url: str, params: Dict[str, Any] = None, cookies: Dict[str, str] = None,
+        headers: Dict[str, str] = None,
     ) -> httpx.Response:
         """
         Executes an HTTP request with transient retry logic (exponential backoff) for idempotent GETs.
@@ -133,7 +134,7 @@ class SAPClient:
 
         for i in range(attempts):
             try:
-                response = self.client.request(method, url, params=params, cookies=cookies)
+                response = self.client.request(method, url, params=params, cookies=cookies, headers=headers)
                 # Check for session expiration
                 if response.status_code == 401:
                     logger.warning("SAP Service Layer session expired/invalid. Re-authenticating...")
@@ -141,7 +142,7 @@ class SAPClient:
                     # Use new cookies
                     cookies = self.cookies
                     # Retry immediate request after re-login
-                    response = self.client.request(method, url, params=params, cookies=cookies)
+                    response = self.client.request(method, url, params=params, cookies=cookies, headers=headers)
 
                 if response.status_code == 200 or method != "GET":
                     return response
@@ -212,6 +213,14 @@ class SAPClient:
         total_start = time.perf_counter()
         page_latencies = []
         total_json_parse = 0.0
+        use_prefer = page_size and page_size > 0
+        request_headers = {"Prefer": f"odata.maxpagesize={page_size}"} if use_prefer else None
+
+        # When using Prefer: odata.maxpagesize, omit $top — SAP treats $top as a total limit
+        # and would cap the result set. Prefer alone controls the page size.
+        if use_prefer:
+            params.pop("$top", None)
+            params_with_select.pop("$top", None)
 
         while next_url:
             page_number += 1
@@ -246,7 +255,8 @@ class SAPClient:
 
             try:
                 response = self._execute_request_with_retry(
-                    "GET", next_url, params=current_params, cookies=self.cookies
+                    "GET", next_url, params=current_params, cookies=self.cookies,
+                    headers=request_headers,
                 )
             except SAPConnectionError as exc:
                 logger.error(

@@ -158,6 +158,7 @@ export function ResultsTable({
   onLoadMore,
 }: ResultsTableProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const [filter, setFilter] = useState<FilterType>("All");
   const [sortField, setSortField] = useState<SortField | null>(null);
@@ -166,13 +167,26 @@ export function ResultsTable({
 
   useEffect(() => {
     if (!onLoadMore || !hasMore || isLoadingMore) return;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) onLoadMore();
-    }, { threshold: 0.1 });
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) onLoadMore();
+      },
+      { threshold: 0.1, root: containerRef.current }
+    );
     const currentSentinel = sentinelRef.current;
     if (currentSentinel) observer.observe(currentSentinel);
-    return () => { if (currentSentinel) observer.unobserve(currentSentinel); };
+    return () => {
+      if (currentSentinel) observer.unobserve(currentSentinel);
+    };
   }, [onLoadMore, hasMore, isLoadingMore]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!onLoadMore || !hasMore || isLoadingMore) return;
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop - clientHeight < 120) {
+      onLoadMore();
+    }
+  };
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -261,6 +275,14 @@ export function ResultsTable({
     });
   }, [filteredResults, sortField, sortOrder]);
 
+  useEffect(() => {
+    if (!onLoadMore || !hasMore || isLoadingMore) return;
+    const el = containerRef.current;
+    if (el && el.scrollHeight <= el.clientHeight) {
+      onLoadMore();
+    }
+  }, [sortedResults.length, hasMore, isLoadingMore, onLoadMore]);
+
   if (!results || results.length === 0) return null;
 
   const issuesCount = summary ? summary.total_sap + summary.total_kra - 2 * summary.matches : 0;
@@ -347,8 +369,8 @@ export function ResultsTable({
         </div>
       </div>
       
-      <div className="flex flex-col border border-slate-200 bg-white shadow-sm overflow-hidden h-[700px] rounded-md">
-        <div className="overflow-auto flex-1 relative">
+      <div className="flex flex-col border border-slate-200 bg-white shadow-sm overflow-hidden flex-1 min-h-[400px] max-h-[calc(100vh-250px)] rounded-md">
+        <div ref={containerRef} onScroll={handleScroll} className="overflow-auto flex-1 relative">
           <table className="w-full text-sm text-left whitespace-nowrap">
             <thead className="bg-slate-50 text-slate-600 text-xs tracking-wider border-b border-slate-200 sticky top-0 z-20 shadow-sm">
               <tr>
