@@ -2,7 +2,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from decimal import Decimal
 from datetime import date
-from typing import Sequence, Dict, List, Set, Tuple
+from typing import Sequence, Dict, List, Set, Tuple, Optional
 import difflib
 
 from app.schemas.invoice import Invoice, InvoiceSource
@@ -15,30 +15,37 @@ from app.schemas.reconciliation import (
 )
 from app.domain.reconciliation_status import ReconciliationStatus
 from app.domain.reconciliation_constants import STATUS_PRIORITY
+from app.domain.normalized_invoice import NormalizedInvoice, normalize_and_group_invoices
 from app.services.normalization import normalize_partner_name, normalize_pin
 
-def check_pin_matches(sap_inv: Invoice | None, kra_inv: Invoice | None) -> bool:
+
+def check_pin_matches(sap_pin_raw: Invoice | str | None, kra_pin_raw: Invoice | str | None) -> bool:
     """
     PIN matches are advisory. If either PIN is missing, we consider it a 'match' 
     so the UI does not highlight it as a difference.
     """
-    if not sap_inv or not kra_inv:
-        return True
-    sap_pin = normalize_pin(sap_inv.pin)
-    kra_pin = normalize_pin(kra_inv.pin)
+    sap_str = sap_pin_raw.pin if isinstance(sap_pin_raw, Invoice) else sap_pin_raw
+    kra_str = kra_pin_raw.pin if isinstance(kra_pin_raw, Invoice) else kra_pin_raw
+
+    sap_pin = normalize_pin(sap_str)
+    kra_pin = normalize_pin(kra_str)
     if not sap_pin or not kra_pin:
         return True
     return sap_pin == kra_pin
 
-def check_partner_name_matches(sap_inv: Invoice | None, kra_inv: Invoice | None) -> bool:
+
+def check_partner_name_matches(sap_name_raw: Invoice | str | None, kra_name_raw: Invoice | str | None) -> bool:
     """
     Partner Name matches are advisory. If either is missing, they do not match.
     """
-    if not sap_inv or not kra_inv:
+    sap_str = sap_name_raw.partner_name if isinstance(sap_name_raw, Invoice) else sap_name_raw
+    kra_str = kra_name_raw.partner_name if isinstance(kra_name_raw, Invoice) else kra_name_raw
+
+    if not sap_str or not kra_str:
         return False
         
-    sap_norm = normalize_partner_name(sap_inv.partner_name)
-    kra_norm = normalize_partner_name(kra_inv.partner_name)
+    sap_norm = normalize_partner_name(sap_str)
+    kra_norm = normalize_partner_name(kra_str)
     
     if sap_norm == kra_norm:
         return True
@@ -47,34 +54,29 @@ def check_partner_name_matches(sap_inv: Invoice | None, kra_inv: Invoice | None)
     return ratio >= 0.85
 
 
-@dataclass(frozen=True)
-class MatchKey:
-    cu_number: str
-    vat_group: str
+def validate_tax_breakdowns(
+    sap_breakdown: Dict[str, Decimal],
+    kra_breakdown: Dict[str, Decimal],
+    tolerance: Decimal
+) -> bool:
+    """
+    Always-on tax breakdown validation comparing category-by-category allocations.
+    Returns True if tax distributions match for all tax rates, False otherwise.
+    """
+    all_keys = set(sap_breakdown.keys()) | set(kra_breakdown.keys())
+    for key in all_keys:
+        sap_val = sap_breakdown.get(key, Decimal("0.00"))
+        kra_val = kra_breakdown.get(key, Decimal("0.00"))
+        if abs(sap_val - kra_val) > tolerance:
+            return False
+    return True
 
 
-@dataclass(frozen=True)
-class CuKey:
-    cu_number: str
-
-
-@dataclass(frozen=True)
-class ReconciliationRecord:
-    match_key: MatchKey
-    base_amount: Decimal
-    pin: str
-    partner_name: str
-    invoice_number: str
-    invoice_date: date
-    original_invoice: Invoice
-
-    @property
-    def cu_number(self) -> str:
-        return self.match_key.cu_number
-
-    @property
-    def vat_group(self) -> str:
-        return self.match_key.vat_group
+def _format_vat_breakdown_str(breakdown: Dict[str, Decimal]) -> str:
+    """Formats VAT breakdown dictionary into readable string."""
+    if len(breakdown) == 1:
+        return list(breakdown.keys())[0]
+    return str(dict(breakdown))
 
 
 def reconcile_invoices(
@@ -83,8 +85,14 @@ def reconcile_invoices(
     amount_tolerance: Decimal = None
 ) -> tuple[ReconciliationSummary, list[ReconciliationResult]]:
     """
-    Executes the 4-phase reconciliation matching algorithm on SAP and KRA invoices.
-    Uses MatchKey and CuKey abstractions for ERP-agnostic, deterministic O(n) reconciliation.
+    Executes the 7-stage modular reconciliation pipeline:
+    Stage 1: Preprocess Source Invoices
+    Stage 2: Inspect Invoice Integrity (Classify missing CU numbers without discarding)
+    Stage 3: Symmetric Normalization (Group by CU & build tax_breakdown with source_rows)
+    Stage 4: Document Pairing by CU Number
+    Stage 5: Document Validation (Amount, PIN, Date, Partner Name)
+    Stage 6: Always-On Tax Breakdown Validation (Category breakdown comparison)
+    Stage 7: Result Generation & Status Classification
     """
     if amount_tolerance is None:
         from app.core.config import get_settings
@@ -92,214 +100,129 @@ def reconcile_invoices(
 
     results: list[ReconciliationResult] = []
 
-    # Map input lists to ReconciliationRecord instances
-    sap_records = [
-        ReconciliationRecord(
-            match_key=MatchKey(cu_number=inv.normalized_cu_number, vat_group=inv.normalized_vat_group),
-            base_amount=inv.base_amount,
-            pin=inv.normalized_pin,
-            partner_name=inv.partner_name,
-            invoice_number=inv.invoice_number,
-            invoice_date=inv.invoice_date,
-            original_invoice=inv
-        )
-        for inv in sap
-    ]
-    kra_records = [
-        ReconciliationRecord(
-            match_key=MatchKey(cu_number=inv.normalized_cu_number, vat_group=inv.normalized_vat_group),
-            base_amount=inv.base_amount,
-            pin=inv.normalized_pin,
-            partner_name=inv.partner_name,
-            invoice_number=inv.invoice_number,
-            invoice_date=inv.invoice_date,
-            original_invoice=inv
-        )
-        for inv in kra
-    ]
+    # Stage 1 & 2 & 3: Validate & Symmetrically Normalize ERP and KRA Data
+    sap_norm_list, sap_missing_cu = normalize_and_group_invoices(sap)
+    kra_norm_list, kra_missing_cu = normalize_and_group_invoices(kra)
 
-    # Internal lookup indices mapping MatchKey to (ReconciliationRecord, source_index)
-    sap_index: dict[MatchKey, tuple[ReconciliationRecord, int]] = {}
-    kra_index: dict[MatchKey, tuple[ReconciliationRecord, int]] = {}
+    # Report rows with missing CU numbers (Data Preservation Principle)
+    for inv, idx in sap_missing_cu:
+        results.append(ReconciliationResult(
+            cu_number="",
+            sap=inv,
+            kra=None,
+            status=ReconciliationStatus.MISSING_CU_NUMBER,
+            amount_match=False,
+            vat_match=False,
+            date_match=True,
+            partner_name_matches=False,
+            pin_matches=False,
+            differences=[
+                Difference(
+                    field=DifferenceField.BASE_AMOUNT,
+                    match=False,
+                    sap_value="Missing CU Number",
+                    kra_value="None"
+                )
+            ],
+            sap_source_index=idx,
+            kra_source_index=None
+        ))
 
-    # Phase 0: Preprocessing & Duplicate Scanning
-    for source_records, source_index_map in ((sap_records, sap_index), (kra_records, kra_index)):
-        groups = defaultdict(list)
-        for i, record in enumerate(source_records):
-            if not record.cu_number or record.cu_number.strip() == "":
-                is_sap = record.original_invoice.source == InvoiceSource.SAP
-                results.append(ReconciliationResult(
-                    cu_number=record.cu_number or "",
-                    sap=record.original_invoice if is_sap else None,
-                    kra=record.original_invoice if not is_sap else None,
-                    status=ReconciliationStatus.MISSING_CU_NUMBER,
-                    amount_match=False,
-                    vat_match=False,
-                    date_match=True,
-                    partner_name_matches=False,
-                    pin_matches=False,
-                    differences=[
-                        Difference(
-                            field=DifferenceField.BASE_AMOUNT,
-                            match=False,
-                            sap_value="Missing CU Number" if is_sap else "None",
-                            kra_value="Missing CU Number" if not is_sap else "None"
-                        )
-                    ],
-                    sap_source_index=i if is_sap else None,
-                    kra_source_index=i if not is_sap else None
-                ))
-                continue
-            groups[record.match_key].append((record, i))
-            
-        for match_key, items in groups.items():
-            if len(items) == 1:
-                # Safe unique key, add to index
-                source_index_map[match_key] = items[0]
-            else:
-                # Exclude entire group from matching index. Emit DUPLICATE_SOURCE_KEY for each record
-                for record, source_idx in items:
-                    is_sap = record.original_invoice.source == InvoiceSource.SAP
-                    results.append(ReconciliationResult(
-                        cu_number=record.cu_number,
-                        sap=record.original_invoice if is_sap else None,
-                        kra=record.original_invoice if not is_sap else None,
-                        status=ReconciliationStatus.DUPLICATE_SOURCE_KEY,
-                        amount_match=False,
-                        vat_match=False,
-                        date_match=True,  # Date check removed, default to True
-                        partner_name_matches=check_partner_name_matches(record.original_invoice if is_sap else None, record.original_invoice if not is_sap else None),
-                        pin_matches=check_pin_matches(record.original_invoice if is_sap else None, record.original_invoice if not is_sap else None),
-                        differences=[
-                            Difference(
-                                field=DifferenceField.BASE_AMOUNT,
-                                match=False,
-                                sap_value=f"Duplicate MatchKey '{match_key.cu_number} / {match_key.vat_group}'" if is_sap else "None",
-                                kra_value=f"Duplicate MatchKey '{match_key.cu_number} / {match_key.vat_group}'" if not is_sap else "None"
-                            )
-                        ],
-                        sap_source_index=source_idx if is_sap else None,
-                        kra_source_index=source_idx if not is_sap else None
-                    ))
+    for inv, idx in kra_missing_cu:
+        results.append(ReconciliationResult(
+            cu_number="",
+            sap=None,
+            kra=inv,
+            status=ReconciliationStatus.MISSING_CU_NUMBER,
+            amount_match=False,
+            vat_match=False,
+            date_match=True,
+            partner_name_matches=False,
+            pin_matches=False,
+            differences=[
+                Difference(
+                    field=DifferenceField.BASE_AMOUNT,
+                    match=False,
+                    sap_value="None",
+                    kra_value="Missing CU Number"
+                )
+            ],
+            sap_source_index=None,
+            kra_source_index=idx
+        ))
 
-    # Phase 1: Exact Match
-    intersection = {k for k in (sap_index.keys() & kra_index.keys()) if k.cu_number.strip() != ""}
-    for match_key in intersection:
-        sap_rec, sap_idx = sap_index[match_key]
-        kra_rec, kra_idx = kra_index[match_key]
-        
-        # Enforce that amounts have compatible signs and are within tolerance
+    # Stage 4: Document Pairing (by CU Number)
+    sap_map: Dict[str, NormalizedInvoice] = {norm.cu_number: norm for norm in sap_norm_list}
+    kra_map: Dict[str, NormalizedInvoice] = {norm.cu_number: norm for norm in kra_norm_list}
+
+    common_cus = set(sap_map.keys()) & set(kra_map.keys())
+    sap_only_cus = set(sap_map.keys()) - set(kra_map.keys())
+    kra_only_cus = set(kra_map.keys()) - set(sap_map.keys())
+
+    # Process Paired Documents (Stage 5, 6, 7)
+    for cu in common_cus:
+        sap_norm = sap_map[cu]
+        kra_norm = kra_map[cu]
+
+        # Stage 5: Document Validation Checks
         amount_match = (
-            (sap_rec.base_amount * kra_rec.base_amount >= 0)
-            and abs(sap_rec.base_amount - kra_rec.base_amount) <= amount_tolerance
+            (sap_norm.total_base * kra_norm.total_base >= 0)
+            and abs(sap_norm.total_base - kra_norm.total_base) <= amount_tolerance
         )
-        
-        differences = []
+        pin_matches = check_pin_matches(sap_norm.pin, kra_norm.pin)
+        partner_name_matches = check_partner_name_matches(sap_norm.partner_name, kra_norm.partner_name)
+        date_match = True
+
+        # Stage 6: Always-On Tax Breakdown Validation
+        vat_breakdown_match = validate_tax_breakdowns(
+            sap_norm.tax_breakdown, kra_norm.tax_breakdown, amount_tolerance
+        )
+
+        differences: list[Difference] = []
         if not amount_match:
             differences.append(Difference(
                 field=DifferenceField.BASE_AMOUNT,
                 match=False,
-                sap_value=f"{sap_rec.base_amount:.2f}",
-                kra_value=f"{kra_rec.base_amount:.2f}"
+                sap_value=f"{sap_norm.total_base:.2f}",
+                kra_value=f"{kra_norm.total_base:.2f}"
             ))
-            
-        status = ReconciliationStatus.MATCH if amount_match else ReconciliationStatus.AMOUNT_MISMATCH
-        
+        elif not vat_breakdown_match:
+            differences.append(Difference(
+                field=DifferenceField.VAT_GROUP,
+                match=False,
+                sap_value=_format_vat_breakdown_str(sap_norm.tax_breakdown),
+                kra_value=_format_vat_breakdown_str(kra_norm.tax_breakdown)
+            ))
+
+        # Stage 7: Status Classification
+        if not amount_match:
+            status = ReconciliationStatus.AMOUNT_MISMATCH
+        elif not vat_breakdown_match:
+            status = ReconciliationStatus.VAT_MISMATCH
+        else:
+            status = ReconciliationStatus.MATCH
+
         results.append(ReconciliationResult(
-            cu_number=match_key.cu_number,
-            sap=sap_rec.original_invoice,
-            kra=kra_rec.original_invoice,
+            cu_number=cu,
+            sap=sap_norm.representative_invoice,
+            kra=kra_norm.representative_invoice,
             status=status,
             amount_match=amount_match,
-            vat_match=True,  # MatchKey matched, so VAT group matches
-            date_match=True,
-            partner_name_matches=check_partner_name_matches(sap_rec.original_invoice, kra_rec.original_invoice),
-            pin_matches=check_pin_matches(sap_rec.original_invoice, kra_rec.original_invoice),
+            vat_match=vat_breakdown_match,
+            date_match=date_match,
+            partner_name_matches=partner_name_matches,
+            pin_matches=pin_matches,
             differences=differences,
-            sap_source_index=sap_idx,
-            kra_source_index=kra_idx
+            sap_source_index=sap_norm.first_source_index,
+            kra_source_index=kra_norm.first_source_index
         ))
 
-    # Phase 2: CU-Level VAT Resolution
-    # Retrieve unmatched record instances directly
-    remaining_sap_records = [item for k, item in sap_index.items() if k not in intersection]
-    remaining_kra_records = [item for k, item in kra_index.items() if k not in intersection]
-    
-    # Group remaining unmatched records by their CuKey, excluding empty CU numbers from pairing
-    sap_unmatched_by_cu = defaultdict(list)
-    for record, idx in remaining_sap_records:
-        if record.cu_number.strip() != "":
-            sap_unmatched_by_cu[CuKey(record.cu_number)].append((record, idx))
-        
-    kra_unmatched_by_cu = defaultdict(list)
-    for record, idx in remaining_kra_records:
-        if record.cu_number.strip() != "":
-            kra_unmatched_by_cu[CuKey(record.cu_number)].append((record, idx))
- 
-    sap_paired_keys: set[MatchKey] = set()
-    kra_paired_keys: set[MatchKey] = set()
-
-    for cu_key in sap_unmatched_by_cu.keys() & kra_unmatched_by_cu.keys():
-        if len(sap_unmatched_by_cu[cu_key]) == 1 and len(kra_unmatched_by_cu[cu_key]) == 1:
-            sap_rec, sap_idx = sap_unmatched_by_cu[cu_key][0]
-            kra_rec, kra_idx = kra_unmatched_by_cu[cu_key][0]
-            
-            # Compare base amounts (VAT groups differ) using tolerance and sign check
-            amount_match = (
-                (sap_rec.base_amount * kra_rec.base_amount >= 0)
-                and abs(sap_rec.base_amount - kra_rec.base_amount) <= amount_tolerance
-            )
-            
-            differences = [
-                Difference(
-                    field=DifferenceField.VAT_GROUP,
-                    match=False,
-                    sap_value=sap_rec.vat_group,
-                    kra_value=kra_rec.vat_group
-                )
-            ]
-            if not amount_match:
-                differences.append(Difference(
-                    field=DifferenceField.BASE_AMOUNT,
-                    match=False,
-                    sap_value=f"{sap_rec.base_amount:.2f}",
-                    kra_value=f"{kra_rec.base_amount:.2f}"
-                ))
-                
-            status = ReconciliationStatus.VAT_MISMATCH if amount_match else ReconciliationStatus.MULTIPLE_MISMATCHES
-            
-            results.append(ReconciliationResult(
-                cu_number=cu_key.cu_number,
-                sap=sap_rec.original_invoice,
-                kra=kra_rec.original_invoice,
-                status=status,
-                amount_match=amount_match,
-                vat_match=False,
-                date_match=True,
-                partner_name_matches=check_partner_name_matches(sap_rec.original_invoice, kra_rec.original_invoice),
-                pin_matches=check_pin_matches(sap_rec.original_invoice, kra_rec.original_invoice),
-                differences=differences,
-                sap_source_index=sap_idx,
-                kra_source_index=kra_idx
-            ))
-            
-            sap_paired_keys.add(sap_rec.match_key)
-            kra_paired_keys.add(kra_rec.match_key)
-
-    # Phase 3: Missing Detection
-    remaining_sap_records_final = [
-        item for k, item in sap_index.items()
-        if k not in intersection and k not in sap_paired_keys
-    ]
-    remaining_kra_records_final = [
-        item for k, item in kra_index.items()
-        if k not in intersection and k not in kra_paired_keys
-    ]
-
-    for sap_rec, sap_idx in remaining_sap_records_final:
+    # Stage 7: Unpaired SAP Invoices
+    for cu in sap_only_cus:
+        sap_norm = sap_map[cu]
         results.append(ReconciliationResult(
-            cu_number=sap_rec.cu_number,
-            sap=sap_rec.original_invoice,
+            cu_number=cu,
+            sap=sap_norm.representative_invoice,
             kra=None,
             status=ReconciliationStatus.MISSING_IN_KRA,
             amount_match=False,
@@ -308,15 +231,17 @@ def reconcile_invoices(
             partner_name_matches=False,
             pin_matches=False,
             differences=[],
-            sap_source_index=sap_idx,
+            sap_source_index=sap_norm.first_source_index,
             kra_source_index=None
         ))
 
-    for kra_rec, kra_idx in remaining_kra_records_final:
+    # Stage 7: Unpaired KRA Invoices
+    for cu in kra_only_cus:
+        kra_norm = kra_map[cu]
         results.append(ReconciliationResult(
-            cu_number=kra_rec.cu_number,
+            cu_number=cu,
             sap=None,
-            kra=kra_rec.original_invoice,
+            kra=kra_norm.representative_invoice,
             status=ReconciliationStatus.MISSING_IN_SAP,
             amount_match=False,
             vat_match=False,
@@ -325,7 +250,7 @@ def reconcile_invoices(
             pin_matches=False,
             differences=[],
             sap_source_index=None,
-            kra_source_index=kra_idx
+            kra_source_index=kra_norm.first_source_index
         ))
 
     # Calculate summary metrics
@@ -376,23 +301,12 @@ def reconcile_invoices(
     # Sort results deterministically by:
     # 1. status priority (severity)
     # 2. CU number
-    # 3. VAT Group
-    # 4. SAP source index
-    # 5. KRA source index
     def get_sort_key(r: ReconciliationResult):
-        vat_group = ""
-        if r.sap:
-            vat_group = r.sap.vat_group
-        elif r.kra:
-            vat_group = r.kra.vat_group
-            
-        sap_idx = r.sap_source_index if r.sap_source_index is not None else -1
-        kra_idx = r.kra_source_index if r.kra_source_index is not None else -1
-        
+        sap_idx = r.sap_source_index if r.sap_source_index is not None else 999999
+        kra_idx = r.kra_source_index if r.kra_source_index is not None else 999999
         return (
             STATUS_PRIORITY.get(r.status, 99),
             r.cu_number,
-            vat_group,
             sap_idx,
             kra_idx
         )

@@ -14,7 +14,6 @@ from app.services import invoice_service
 
 def test_missing_cu_number_and_partner_name_ingested():
     # Verify that raw document with missing U_CUINV (CU Number) and CardName (Customer name) is imported
-    # (previously U_CUINV and CardName missing would raise SAPQueryError)
     raw_doc = {
         "DocNum": 12345,
         "DocDate": "2026-03-02T00:00:00Z",
@@ -193,8 +192,6 @@ def test_missing_cu_number_cannot_participate_in_reconciliation():
         invoice_date=datetime.date(2026, 3, 1), cu_number="", vat_group="16",
         base_amount=Decimal("100.00"), source=InvoiceSource.SAP
     )
-    # Even if KRA has a document with matching details (e.g. amount, pin, vat, same blank/no CU),
-    # they cannot reconcile because the primary match key is absent.
     kra_inv = Invoice(
         pin="P1", partner_name="Cust1", invoice_number="INV1",
         invoice_date=datetime.date(2026, 3, 1), cu_number="", vat_group="16",
@@ -208,11 +205,8 @@ def test_missing_cu_number_cannot_participate_in_reconciliation():
         assert r.status == ReconciliationStatus.MISSING_CU_NUMBER
 
 
-def test_duplicate_source_key_only_on_non_empty_cu():
-    # Verify that duplicate source key is only generated when two or more documents
-    # share the same non-empty (cu_number, vat_group).
-    # Multiple documents with empty/missing CU number should not trigger duplicates of each other,
-    # they should just be treated as missing CU numbers.
+def test_cu_level_accumulation_and_missing_cu_preservation():
+    # Multiple documents with empty/missing CU number are preserved and treated as missing CU numbers.
     sap_inv_empty1 = Invoice(
         pin="P1", partner_name="Cust1", invoice_number="INV1",
         invoice_date=datetime.date(2026, 3, 1), cu_number="", vat_group="16",
@@ -224,7 +218,7 @@ def test_duplicate_source_key_only_on_non_empty_cu():
         base_amount=Decimal("100.00"), source=InvoiceSource.SAP
     )
     
-    # Non-empty duplicate keys
+    # Non-empty CU keys: under CU-level normalization, multiple items with same CU are aggregated
     sap_inv_dup1 = Invoice(
         pin="P2", partner_name="Cust2", invoice_number="INV3",
         invoice_date=datetime.date(2026, 3, 1), cu_number="CU_DUP", vat_group="16",
@@ -238,17 +232,15 @@ def test_duplicate_source_key_only_on_non_empty_cu():
     
     summary, results = reconcile_invoices([sap_inv_empty1, sap_inv_empty2, sap_inv_dup1, sap_inv_dup2], [])
     
-    # We should have:
-    # 2 MISSING_CU_NUMBER (from empty1 and empty2)
-    # 2 DUPLICATE_SOURCE_KEY (from dup1 and dup2)
     assert summary.missing_cu == 2
-    assert summary.duplicate_cu == 2
+    assert summary.missing_in_kra == 1  # Accumulated CU_DUP (250.00) missing in KRA
     
     empty_results = [r for r in results if r.status == ReconciliationStatus.MISSING_CU_NUMBER]
-    dup_results = [r for r in results if r.status == ReconciliationStatus.DUPLICATE_SOURCE_KEY]
+    missing_kra_results = [r for r in results if r.status == ReconciliationStatus.MISSING_IN_KRA]
     
     assert len(empty_results) == 2
-    assert len(dup_results) == 2
+    assert len(missing_kra_results) == 1
+    assert missing_kra_results[0].sap.base_amount == Decimal("250.00")
 
 
 def test_unknown_vat_group_handling_graceful():
@@ -274,5 +266,3 @@ def test_unknown_vat_group_handling_graceful():
     assert results[0].vat_match is False
     assert results[0].differences[0].sap_value == "UK_VAT_UNKNOWN"
     assert results[0].differences[0].kra_value == "16"
-
-
