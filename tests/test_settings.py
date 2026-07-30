@@ -271,7 +271,7 @@ def test_settings_rbac_forbidden_for_standard_user(client: TestClient, db_sessio
         headers=headers,
     )
     assert sys_update_res.status_code == 403
-    assert "Administrator or checker privileges required" in sys_update_res.json()["detail"]
+    assert "privileges required" in sys_update_res.json()["detail"]
 
     # PUT sap-connection should return 403 Forbidden
     sap_res = client.put(

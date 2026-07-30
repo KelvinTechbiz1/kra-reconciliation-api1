@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 from app.core.config import get_settings, BaseAmountPolicy
 from app.core.exceptions import SAPQueryError
 from app.services.vat_normalizer import vat_normalizer
+from app.utils.vat_utils import normalize_vat_rate
 from app.domain.document_types import CanonicalReconciliationRow, IngestionProvenance
 
 logger = logging.getLogger(__name__)
@@ -106,20 +107,38 @@ def map_sap_document_to_canonical_rows(
 
     valid_lines = []
     for line_idx, line in enumerate(document_lines):
-        # 1. VAT Group
-        vat_group = line.get("VatGroup")
-        if vat_group is None:
-            raise SAPQueryError(
-                f"SAP {source_document_type} {invoice_number} line {line_idx} is missing required field: VatGroup"
-            )
-        vat_group_str = str(vat_group).strip()
-        if not vat_group_str:
-            raise SAPQueryError(
-                f"SAP {source_document_type} {invoice_number} line {line_idx} has empty VatGroup"
-            )
+        # 1. Tax Percentage / VAT Group Extraction
+        tax_pct_raw = line.get("TaxPercentagePerRow")
+        vat_group_raw = line.get("VatGroup")
 
-        # Normalize SAP VAT code to canonical percentage string
-        vat_group_str = vat_normalizer.normalize("sap", reconciliation_type, vat_group_str)
+        if tax_pct_raw is not None:
+            try:
+                tax_pct = Decimal(str(tax_pct_raw).strip())
+            except (InvalidOperation, ValueError, TypeError) as exc:
+                raise SAPQueryError(
+                    f"SAP {source_document_type} {invoice_number} line {line_idx} has invalid TaxPercentagePerRow: {exc}"
+                )
+
+            if tax_pct > 0:
+                vat_group_str = normalize_vat_rate(tax_pct)
+            else:
+                # Rate is 0.0: Check if VatGroup specifies EXEMPT classification
+                vat_group_raw_str = str(vat_group_raw).strip() if vat_group_raw is not None else ""
+                if vat_group_raw_str and vat_normalizer.normalize("sap", reconciliation_type, vat_group_raw_str) == "EXEMPT":
+                    vat_group_str = "EXEMPT"
+                else:
+                    vat_group_str = "0"
+        elif vat_group_raw is not None:
+            vat_group_str = str(vat_group_raw).strip()
+            if not vat_group_str:
+                raise SAPQueryError(
+                    f"SAP {source_document_type} {invoice_number} line {line_idx} has empty VatGroup"
+                )
+            vat_group_str = vat_normalizer.normalize("sap", reconciliation_type, vat_group_str)
+        else:
+            raise SAPQueryError(
+                f"SAP {source_document_type} {invoice_number} line {line_idx} has missing tax fields (neither TaxPercentagePerRow nor VatGroup present)"
+            )
 
         # 2. Base Amount (LineTotal)
         line_total_raw = line.get("LineTotal")

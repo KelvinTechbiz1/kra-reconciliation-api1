@@ -339,3 +339,79 @@ def test_sap_configuration_startup_validation():
             SAP_USERNAME=""  # Missing username
         )
 
+
+def test_sap_mapper_tax_percentage_per_row_primary():
+    # Test that TaxPercentagePerRow is used as the authoritative tax rate, even with custom/company-specific VatGroup strings
+    raw_doc = {
+        "DocNum": 801,
+        "CardName": "Custom SAP Customer",
+        "FederalTaxID": "P000000000A",
+        "DocDate": "2026-03-02T00:00:00Z",
+        "U_CUINV": "CU100",
+        "DocumentLines": [
+            {"TaxPercentagePerRow": 16.0, "VatGroup": "SALEVAT", "LineTotal": 1000.00},
+            {"TaxPercentagePerRow": 8.0, "VatGroup": "REDUCED8", "LineTotal": 500.00}
+        ]
+    }
+    records = map_sap_document_to_canonical_rows(raw_doc, "Invoice", "Invoices", reconciliation_type="sales")
+    assert len(records) == 2
+    vat_map = {r.vat_group: r.base_amount for r in records}
+    assert vat_map["16"] == Decimal("1000.00")
+    assert vat_map["8"] == Decimal("500.00")
+
+
+def test_sap_mapper_tax_percentage_per_row_zero_vs_exempt():
+    # Test that TaxPercentagePerRow == 0.0 checks VatGroup to differentiate Exempt from Zero Rated
+    raw_doc = {
+        "DocNum": 802,
+        "CardName": "Custom SAP Customer",
+        "FederalTaxID": "P000000000A",
+        "DocDate": "2026-03-02T00:00:00Z",
+        "U_CUINV": "CU101",
+        "DocumentLines": [
+            {"TaxPercentagePerRow": 0.0, "VatGroup": "X0", "LineTotal": 300.00},  # X0 maps to EXEMPT in sales output_map
+            {"TaxPercentagePerRow": 0.0, "VatGroup": "Z0", "LineTotal": 200.00}   # Z0 is Zero Rated -> "0"
+        ]
+    }
+    records = map_sap_document_to_canonical_rows(raw_doc, "Invoice", "Invoices", reconciliation_type="sales")
+    assert len(records) == 2
+    vat_map = {r.vat_group: r.base_amount for r in records}
+    assert vat_map["EXEMPT"] == Decimal("300.00")
+    assert vat_map["0"] == Decimal("200.00")
+
+
+def test_sap_mapper_tax_percentage_missing_fallback():
+    # Test fallback to VatGroup when TaxPercentagePerRow is missing
+    raw_doc = {
+        "DocNum": 803,
+        "CardName": "Fallback Test",
+        "FederalTaxID": "P000000000A",
+        "DocDate": "2026-03-02T00:00:00Z",
+        "U_CUINV": "CU102",
+        "DocumentLines": [
+            {"VatGroup": "O1", "LineTotal": 400.00}
+        ]
+    }
+    records = map_sap_document_to_canonical_rows(raw_doc, "Invoice", "Invoices", reconciliation_type="sales")
+    assert len(records) == 1
+    assert records[0].vat_group == "16"
+    assert records[0].base_amount == Decimal("400.00")
+
+
+def test_sap_mapper_missing_both_tax_fields_raises_error():
+    # Test error raised when neither TaxPercentagePerRow nor VatGroup is present
+    raw_doc = {
+        "DocNum": 804,
+        "CardName": "No Tax Field Test",
+        "FederalTaxID": "P000000000A",
+        "DocDate": "2026-03-02T00:00:00Z",
+        "U_CUINV": "CU103",
+        "DocumentLines": [
+            {"LineTotal": 400.00}
+        ]
+    }
+    with pytest.raises(SAPQueryError) as exc_info:
+        map_sap_document_to_canonical_rows(raw_doc, "Invoice", "Invoices", reconciliation_type="sales")
+    assert "missing tax fields" in str(exc_info.value)
+
+

@@ -8,6 +8,6 @@ FIELD_ALIASES = {
     "invoice_number": ["Invoice Number", "Document Number", "InvoiceNumber", "DocNum", "DocumentNumber"],
     "invoice_date": ["Invoice Date", "Document Date", "InvoiceDate", "DocDate", "DocumentDate"],
     "cu_number": ["CU Number", "Control Unit Number", "CUNumber", "ControlUnitNumber"],
-    "vat_group": ["VAT Group", "Tax Group", "VATGroup", "TaxGroup"],
+    "vat_group": ["VAT Group", "Tax Group", "VATGroup", "TaxGroup", "TaxPercentagePerRow", "Tax Percentage Per Row"],
     "base_amount": ["Base Amount", "Line Total", "Amount", "BaseAmount", "LineTotal"]
 }

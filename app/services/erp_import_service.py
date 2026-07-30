@@ -431,7 +431,7 @@ class ERPImportService:
         # Keywords that indicate a header row for ERP import files
         _HEADER_KEYWORDS = {
             "cu_number": {"cu", "control unit", "etr", "serial", "cu number", "etr number", "cu no", "cu serial", "control unit no", "bill#", "bill"},
-            "vat_group": {"vat", "tax rate", "tax type", "vat group", "vat code", "tax code", "rate", "vat rate / group"},
+            "vat_group": {"vat", "tax rate", "tax type", "vat group", "vat code", "tax code", "rate", "vat rate / group", "taxpercentagerow", "tax percentage per row"},
             "base_amount": {"amount", "base", "taxable", "subtotal", "total", "value", "base amount", "taxable amount", "total amount", "net", "amount without tax"},
             "pin": {"pin", "kra", "tax number", "customer pin", "supplier pin", "vendor pin"},
             "invoice_number": {"invoice", "docnum", "receipt", "doc num", "inv no", "invoice number", "invoice no", "receipt no", "bill#", "bill"},
