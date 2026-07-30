@@ -86,10 +86,16 @@ UI-UX/
 /test_*.py
 
 # ---------------------------------------------------------------------------
+# Docker deployment files
+# --------------------------------------------------------------------------
+Dockerfile
+docker-compose.yml
+.dockerignore
+docker-entrypoint.sh
+frontend/Dockerfile
+
+# ---------------------------------------------------------------------------
 # Keep these (explicit exceptions)
 # ---------------------------------------------------------------------------
-!.env.example
 !.gitignore
 !docs/
-.env.example
-deploy/docker-compose.yml
