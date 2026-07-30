@@ -12,6 +12,7 @@ export interface Invoice {
 export interface ReconciliationResult {
   cu_number: string;
   status: string;
+  invoice_type?: string;
   amount_match: boolean;
   vat_match: boolean;
   date_match: boolean;
@@ -19,6 +20,16 @@ export interface ReconciliationResult {
   pin_matches: boolean;
   sap: Invoice | null;
   kra: Invoice | null;
+
+  sap_base_16?: number;
+  sap_base_8?: number;
+  sap_base_0?: number;
+  sap_base_exempt?: number;
+
+  kra_base_16?: number;
+  kra_base_8?: number;
+  kra_base_0?: number;
+  kra_base_exempt?: number;
 }
 
 export interface ReconciliationSummary {

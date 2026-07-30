@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useMemo } from "react";
-import { Check, X, AlertTriangle, ArrowUpDown, ChevronDown, ChevronRight, Database, FileSpreadsheet, CheckCircle2 } from "lucide-react";
+import { Check, X, AlertTriangle, ArrowUpDown, ChevronDown, ChevronRight, Database, FileSpreadsheet, CheckCircle2, Calculator } from "lucide-react";
 import { Invoice, ReconciliationResult, ReconciliationSummary } from "../types";
 
 const formatVatGroup = (vat?: string) => {
@@ -16,6 +16,41 @@ const formatNumeric = (val: string | number | undefined | null) => {
     return Number(val).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
   return String(val);
+};
+
+const getTaxBreakdownList = (
+  inv: Invoice | Partial<Invoice> | null,
+  b16?: number | null,
+  b8?: number | null,
+  b0?: number | null,
+  bExempt?: number | null
+) => {
+  if (!inv) return [];
+
+  const n16 = b16 != null ? Number(b16) : 0;
+  const n8 = b8 != null ? Number(b8) : 0;
+  const n0 = b0 != null ? Number(b0) : 0;
+  const nExempt = bExempt != null ? Number(bExempt) : 0;
+
+  const hasExplicitBases = (n16 > 0) || (n8 > 0) || (n0 > 0) || (nExempt > 0);
+
+  if (hasExplicitBases) {
+    const list: { label: string; amount: number; code: string }[] = [];
+    if (n16 > 0) list.push({ label: "16% Standard Rate Base", amount: n16, code: "16%" });
+    if (n8 > 0) list.push({ label: "8% Fuel/Reduced Rate Base", amount: n8, code: "8%" });
+    if (n0 > 0) list.push({ label: "0% Zero-Rated Base", amount: n0, code: "0%" });
+    if (nExempt > 0) list.push({ label: "EXEMPT Base Amount", amount: nExempt, code: "EXEMPT" });
+    return list;
+  }
+
+  const vatStr = inv.vat_group || "";
+  const baseAmt = Number(inv.base_amount || 0);
+
+  return [{
+    label: `${formatVatGroup(vatStr) || "16%"} Rate Base`,
+    amount: baseAmt,
+    code: vatStr || "16%"
+  }];
 };
 
 interface ResultsTableProps {
@@ -493,13 +528,85 @@ export function ResultsTable({
                               </tbody>
                             </table>
 
+                            {/* Itemized VAT Category Base Accumulation Card */}
+                            <div className="mt-5 pt-4 border-t border-slate-200">
+                              <div className="flex items-center justify-between mb-3">
+                                <h5 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                                  <Calculator className="w-4 h-4 text-emerald-600" />
+                                  Itemized VAT Category Base Accumulation
+                                </h5>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                {/* SAP (ERP) Breakdown */}
+                                <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-200">
+                                  <div className="flex items-center justify-between font-semibold text-slate-700 pb-2 mb-2 border-b border-slate-200">
+                                    <span className="flex items-center gap-1.5">
+                                      <Database className="w-3.5 h-3.5 text-slate-500" />
+                                      SAP Base Accumulation
+                                    </span>
+                                    <span className="font-mono text-slate-900 font-bold">
+                                      KES {formatNumeric(sap.base_amount)}
+                                    </span>
+                                  </div>
+                                  
+                                  {isMissingSap ? (
+                                    <p className="text-red-500 italic py-1 text-center">Document missing in SAP</p>
+                                  ) : (
+                                    <div className="space-y-1.5">
+                                      {getTaxBreakdownList(sap, r.sap_base_16, r.sap_base_8, r.sap_base_0, r.sap_base_exempt).map((item, i) => (
+                                        <div key={i} className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded border border-slate-200 shadow-2xs">
+                                          <span className="text-slate-600 font-medium">{item.label}</span>
+                                          <span className="font-mono font-bold text-slate-800">{formatNumeric(item.amount)}</span>
+                                        </div>
+                                      ))}
+                                      <div className="pt-2 flex items-center justify-between text-slate-700 font-medium text-[11px] border-t border-dashed border-slate-300">
+                                        <span>= Total Accumulated SAP Base</span>
+                                        <span className="font-mono font-bold text-slate-900">KES {formatNumeric(sap.base_amount)}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* KRA (eTIMS) Breakdown */}
+                                <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-200">
+                                  <div className="flex items-center justify-between font-semibold text-slate-700 pb-2 mb-2 border-b border-slate-200">
+                                    <span className="flex items-center gap-1.5">
+                                      <FileSpreadsheet className="w-3.5 h-3.5 text-slate-500" />
+                                      KRA Base Accumulation
+                                    </span>
+                                    <span className="font-mono text-slate-900 font-bold">
+                                      KES {formatNumeric(kra.base_amount)}
+                                    </span>
+                                  </div>
+
+                                  {isMissingKra ? (
+                                    <p className="text-red-500 italic py-1 text-center">Document missing in KRA</p>
+                                  ) : (
+                                    <div className="space-y-1.5">
+                                      {getTaxBreakdownList(kra, r.kra_base_16, r.kra_base_8, r.kra_base_0, r.kra_base_exempt).map((item, i) => (
+                                        <div key={i} className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded border border-slate-200 shadow-2xs">
+                                          <span className="text-slate-600 font-medium">{item.label}</span>
+                                          <span className="font-mono font-bold text-slate-800">{formatNumeric(item.amount)}</span>
+                                        </div>
+                                      ))}
+                                      <div className="pt-2 flex items-center justify-between text-slate-700 font-medium text-[11px] border-t border-dashed border-slate-300">
+                                        <span>= Total Accumulated KRA Base</span>
+                                        <span className="font-mono font-bold text-slate-900">KES {formatNumeric(kra.base_amount)}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
                             {/* Show Numeric Difference for Amounts */}
                             {(!isMatch && !isMissingSap && !isMissingKra) && (
                               <div className="mt-4 pt-3 border-t border-slate-200 text-sm">
                                 {sap.base_amount !== kra.base_amount && (
                                   <div className="flex items-center gap-2 text-amber-700 font-medium px-2">
                                     <AlertTriangle className="w-4 h-4" />
-                                    <span>Base Amount differs by {formatNumeric(Math.abs(Number(sap.base_amount || 0) - Number(kra.base_amount || 0)))}</span>
+                                    <span>Base Amount differs by KES {formatNumeric(Math.abs(Number(sap.base_amount || 0) - Number(kra.base_amount || 0)))}</span>
                                   </div>
                                 )}
                               </div>

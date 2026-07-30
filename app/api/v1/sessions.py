@@ -9,7 +9,7 @@ from app.domain.reconciliation_status import ReconciliationStatus
 from app.models.user import User
 from app.models.reconciliation_session import SessionInvoice, SessionReconciliationResult
 from app.schemas.invoice import InvoiceSource, Invoice, PaginatedInvoicesResponse
-from app.schemas.reconciliation import ReconciliationResult, PaginatedReconciliationResultsResponse
+from app.schemas.reconciliation import ReconciliationResult, PaginatedReconciliationResultsResponse, InvoiceType
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -128,18 +128,30 @@ def get_session_reconciliation_results(
                 source=InvoiceSource.KRA
             )
 
+        raw_type = getattr(r, "invoice_type", None) or "Single Tax"
+        inv_type = InvoiceType(raw_type) if raw_type in [e.value for e in InvoiceType] else InvoiceType.SINGLE_TAX
+
         results.append(
             ReconciliationResult(
                 cu_number=r.cu_number,
                 sap=sap_invoice,
                 kra=kra_invoice,
                 status=r.status,
+                invoice_type=inv_type,
                 amount_match=r.amount_match,
                 vat_match=r.vat_match,
                 date_match=r.date_match,
                 partner_name_matches=r.partner_name_matches,
                 pin_matches=r.pin_matches,
-                differences=[] # derived by frontend, empty is safe
+                differences=[],
+                sap_base_16=r.sap_base_16,
+                sap_base_8=r.sap_base_8,
+                sap_base_0=r.sap_base_0,
+                sap_base_exempt=r.sap_base_exempt,
+                kra_base_16=r.kra_base_16,
+                kra_base_8=r.kra_base_8,
+                kra_base_0=r.kra_base_0,
+                kra_base_exempt=r.kra_base_exempt,
             )
         )
 

@@ -1,4 +1,4 @@
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
 
 const TOKEN_KEY = "access_token";
 
@@ -31,21 +31,28 @@ export async function fetchWithAuth(endpoint: string, options: RequestInit = {})
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
 
-  // Only a 401 means the auth session is actually invalid/expired. Other
-  // 4xx (e.g. 403 "no company", 404 "no SAP connection") are domain errors
-  // and must NOT log the user out — the caller surfaces them instead.
-  if (response.status === 401) {
-    removeToken();
-    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-      window.location.href = "/login";
+    // Only a 401 means the auth session is actually invalid/expired. Other
+    // 4xx (e.g. 403 "no company", 404 "no SAP connection") are domain errors
+    // and must NOT log the user out — the caller surfaces them instead.
+    if (response.status === 401) {
+      removeToken();
+      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+      throw new Error("Session expired. Please log in again.");
     }
-    throw new Error("Session expired. Please log in again.");
-  }
 
-  return response;
+    return response;
+  } catch (err: unknown) {
+    if (err instanceof Error && (err.name === "TypeError" || err.message.includes("fetch") || err.message.includes("Failed to fetch"))) {
+      throw new Error(`Unable to connect to backend server at ${API_BASE_URL}. Please ensure the backend service is running.`);
+    }
+    throw err;
+  }
 }
