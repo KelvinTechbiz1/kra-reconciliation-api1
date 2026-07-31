@@ -2,7 +2,7 @@ import datetime
 import logging
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List
-from app.core.config import get_settings, BaseAmountPolicy
+from app.core.config import get_settings
 from app.core.exceptions import SAPQueryError
 from app.services.vat_normalizer import vat_normalizer
 from app.utils.vat_utils import normalize_vat_rate
@@ -49,7 +49,8 @@ def map_sap_document_to_canonical_rows(
     endpoint_name: str,
     reconciliation_type: str = "sales",
     reconciliation_session_id: str = "N/A",
-    purchase_cu_source: str = "U_CUINV"
+    purchase_cu_source: str = "U_CUINV",
+    base_amount_policy: str | None = None,
 ) -> List[CanonicalReconciliationRow]:
     """
     Flattens a raw SAP document and maps it to a list of CanonicalReconciliationRow objects.
@@ -57,7 +58,9 @@ def map_sap_document_to_canonical_rows(
     and warns on missing/invalid fields.
     """
     settings = get_settings()
-    policy = settings.sap_base_amount_policy
+    # Per-company policy from system_settings takes precedence; falls back to the
+    # global env setting (SAP_BASE_AMOUNT_POLICY) when no explicit policy is passed.
+    policy = str(base_amount_policy).lower() if base_amount_policy is not None else settings.sap_base_amount_policy.value
 
     # Extract header fields
     invoice_number_raw = raw_document.get("DocNum")
@@ -158,12 +161,12 @@ def map_sap_document_to_canonical_rows(
         # Negative base amounts (e.g. Credit Notes, adjustments) are explicitly allowed.
         # Zero base amounts are filtered or rejected based on policy.
         if base_amount == 0:
-            if policy in (BaseAmountPolicy.SKIP, "skip"):
+            if policy == "skip":
                 logger.warning(
                     f"[ReconciliationSession: {reconciliation_session_id}] {source_document_type} {invoice_number} line {line_idx} skipped because base_amount is 0.00 under policy 'skip'."
                 )
                 continue
-            elif policy in (BaseAmountPolicy.REJECT, "reject", "reject_session"):
+            elif policy in ("reject", "reject_session"):
                 logger.error(
                     f"[ReconciliationSession: {reconciliation_session_id}] {source_document_type} {invoice_number} line {line_idx} rejected because base_amount is 0.00 under policy 'reject'."
                 )

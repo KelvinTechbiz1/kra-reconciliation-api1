@@ -77,6 +77,7 @@ def load_sap_invoices(
         reconciliation_session_id=session.id,
         sales_cu_source=system_setting.sales_cu_source,
         purchase_cu_source=system_setting.purchase_cu_source,
+        base_amount_policy=system_setting.base_amount_policy,
     )
 
     _save_invoices(db, session.id, invoices, InvoiceSource.SAP)

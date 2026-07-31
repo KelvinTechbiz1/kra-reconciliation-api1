@@ -270,6 +270,34 @@ def test_sap_mapper_base_amount_policies():
         settings.sap_base_amount_policy = original_policy
 
 
+def test_sap_mapper_explicit_base_amount_policy_overrides_env():
+    raw_invoice = {
+        "DocNum": 770,
+        "CardName": "Welding Alloys Ltd",
+        "FederalTaxID": "P000609554G",
+        "DocDate": "2026-03-02T00:00:00Z",
+        "U_CUINV": "CU1",
+        "DocumentLines": [
+            {"VatGroup": "O1", "LineTotal": 100.00},
+            {"VatGroup": "O1", "LineTotal": 0.00},
+        ]
+    }
+
+    settings = get_settings()
+    original_policy = settings.sap_base_amount_policy
+
+    try:
+        # Env default is SKIP, but the per-company policy passed explicitly wins.
+        settings.sap_base_amount_policy = BaseAmountPolicy.SKIP
+        records = map_sap_document_to_canonical_rows(
+            raw_invoice, "Invoice", "Invoices", base_amount_policy="allow"
+        )
+        assert len(records) == 1
+        assert records[0].base_amount == Decimal("100.00")
+    finally:
+        settings.sap_base_amount_policy = original_policy
+
+
 def test_sap_mapper_credit_note_and_debit_note_sign_normalization():
     # Test Credit Note (negative mapping)
     raw_credit_note = {
