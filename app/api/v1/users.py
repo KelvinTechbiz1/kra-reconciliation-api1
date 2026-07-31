@@ -69,11 +69,18 @@ def create_user(
 
     if user.email and getattr(user, "generated_password", None):
         try:
+            company_name = None
+            if user.company_id:
+                from app.models.company import Company
+                company = db.query(Company).filter(Company.id == user.company_id).first()
+                company_name = company.name if company else None
+
             email_service.send_welcome_account_email(
                 to_email=user.email,
                 username=user.username,
                 password=user.generated_password,
                 full_name=user.full_name,
+                company_name=company_name,
             )
         except Exception as e:
             logger.error(f"Failed to send welcome email to {user.email}: {e}")
@@ -171,7 +178,13 @@ def send_reset_email(
     settings = get_settings()
     reset_link = f"{settings.frontend_url.rstrip('/')}/reset-password?token={token}"
 
-    sent = email_service.send_password_reset_email(target_user.email, target_user.username, reset_link)
+    company_name = None
+    if target_user.company_id:
+        from app.models.company import Company
+        company = db.query(Company).filter(Company.id == target_user.company_id).first()
+        company_name = company.name if company else None
+
+    sent = email_service.send_password_reset_email(target_user.email, target_user.username, reset_link, company_name=company_name)
     if not sent:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

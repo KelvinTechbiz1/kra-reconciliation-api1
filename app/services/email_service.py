@@ -49,15 +49,18 @@ def send_email(to_email: str, subject: str, body_html: str, body_text: str | Non
         return False
 
 
-def send_password_reset_email(to_email: str, username: str, reset_link: str) -> bool:
+def send_password_reset_email(to_email: str, username: str, reset_link: str, company_name: str | None = None) -> bool:
     """Send a password reset email to a user."""
     settings = get_settings()
     app_name = "UshuruLens"
-    subject = f"Password Reset Request — {app_name}"
+    company_tag = f" — {company_name}" if company_name else ""
+    subject = f"Password Reset Request{company_tag} — {app_name}"
+
+    account_label = f"{app_name} ({company_name})" if company_name else f"{app_name} account"
 
     body_text = (
         f"Hello {username},\n\n"
-        f"You requested a password reset for your {app_name} account.\n"
+        f"You requested a password reset for your {account_label}.\n"
         f"Please click or copy the following link into your browser to reset your password:\n\n"
         f"{reset_link}\n\n"
         f"This link will expire in {settings.password_reset_token_expire_minutes} minutes.\n"
@@ -93,7 +96,7 @@ def send_password_reset_email(to_email: str, username: str, reset_link: str) -> 
                 Hello {username},
               </p>
               <p style="margin:0 0 20px 0;">
-                We received a request to reset your password for your account on <strong>{app_name}</strong>.
+                We received a request to reset your password for your account on <strong>{app_name}</strong>{f" (<strong>{company_name}</strong>)" if company_name else ""}.
               </p>
               
               <div style="text-align:center; margin:28px 0;">
@@ -134,17 +137,20 @@ def send_password_reset_email(to_email: str, username: str, reset_link: str) -> 
     return send_email(to_email, subject, body_html, body_text)
 
 
-def send_welcome_account_email(to_email: str, username: str, password: str, full_name: str | None = None) -> bool:
+def send_welcome_account_email(to_email: str, username: str, password: str, full_name: str | None = None, company_name: str | None = None) -> bool:
     """Send a welcome email with account login credentials to a newly created user."""
     settings = get_settings()
     app_name = "UshuruLens"
-    subject = f"Welcome to {app_name} — Your Account Credentials"
+    company_tag = f" — {company_name}" if company_name else ""
+    subject = f"Welcome to {app_name}{company_tag} — Your Account Credentials"
     login_link = f"{settings.frontend_url.rstrip('/')}/login"
     display_name = full_name or username
 
+    account_label = f"{app_name} ({company_name})" if company_name else app_name
+
     body_text = (
         f"Hello {display_name},\n\n"
-        f"Your account on {app_name} has been created successfully.\n\n"
+        f"Your account on {account_label} has been created successfully.\n\n"
         f"Here are your initial login credentials:\n"
         f"  Username: {username}\n"
         f"  Temporary Password: {password}\n\n"
@@ -181,7 +187,7 @@ def send_welcome_account_email(to_email: str, username: str, password: str, full
                 Hello {display_name},
               </p>
               <p style="margin:0 0 20px 0;">
-                Your new team account for <strong>{app_name}</strong> has been provisioned and is ready for use.
+                Your new team account{f" for <strong>{company_name}</strong>" if company_name else ""} on <strong>{app_name}</strong> has been provisioned and is ready for use.
               </p>
               
               <div style="background-color:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:20px; margin:24px 0;">

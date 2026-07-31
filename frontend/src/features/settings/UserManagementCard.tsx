@@ -559,11 +559,13 @@ interface EditUserRowProps {
   user: UserRecord;
   companies: CompanyProfile[];
   currentUserRole: string;
+  currentUserId: number;
   onSaved: () => void;
   onCancel: () => void;
 }
 
-function EditUserRow({ user, companies, currentUserRole, onSaved, onCancel }: EditUserRowProps) {
+function EditUserRow({ user, companies, currentUserRole, currentUserId, onSaved, onCancel }: EditUserRowProps) {
+  const isOwnProfile = user.id === currentUserId && currentUserRole === "company_admin";
   const [username, setUsername] = useState(user.username);
   const [role, setRole] = useState<UserRole>(user.role as UserRole);
   const [email, setEmail] = useState(user.email || "");
@@ -602,8 +604,14 @@ function EditUserRow({ user, companies, currentUserRole, onSaved, onCancel }: Ed
   };
 
   return (
-    <tr className="bg-blue-50/40 border-t border-blue-100">
+    <tr className={isOwnProfile ? "bg-slate-50/80 border-t border-slate-200" : "bg-blue-50/40 border-t border-blue-100"}>
       <td className="px-5 py-4" colSpan={currentUserRole === "company_admin" ? 5 : 6}>
+        {isOwnProfile && (
+          <div className="mb-3 px-3 py-2 rounded-lg border border-slate-200 bg-slate-100 text-xs text-slate-500 flex items-center gap-2">
+            <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
+            Your own profile is read-only. Contact an Admin to make changes.
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-3">
           <div className="space-y-1">
             <label className="text-[10px] font-semibold text-slate-600 uppercase">Username *</label>
@@ -612,7 +620,8 @@ function EditUserRow({ user, companies, currentUserRole, onSaved, onCancel }: Ed
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-3 py-1.5 h-9 rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-500 font-mono"
+              disabled={isOwnProfile}
+              className="w-full px-3 py-1.5 h-9 rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-500 font-mono disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
             />
           </div>
           <div className="space-y-1">
@@ -621,7 +630,8 @@ function EditUserRow({ user, companies, currentUserRole, onSaved, onCancel }: Ed
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="w-full px-3 py-1.5 h-9 rounded-md border border-slate-200 bg-white text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-500"
+              disabled={isOwnProfile}
+              className="w-full px-3 py-1.5 h-9 rounded-md border border-slate-200 bg-white text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
             />
           </div>
           <div className="space-y-1">
@@ -630,7 +640,8 @@ function EditUserRow({ user, companies, currentUserRole, onSaved, onCancel }: Ed
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-1.5 h-9 rounded-md border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+              disabled={isOwnProfile}
+              className="w-full px-3 py-1.5 h-9 rounded-md border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
             />
           </div>
           <div className="space-y-1">
@@ -638,7 +649,8 @@ function EditUserRow({ user, companies, currentUserRole, onSaved, onCancel }: Ed
             <select
               value={role}
               onChange={(e) => setRole(e.target.value as UserRole)}
-              className="w-full px-3 py-1.5 h-9 rounded-md border border-slate-200 bg-white text-xs text-slate-800 font-medium cursor-pointer focus:outline-none focus:border-blue-500"
+              disabled={isOwnProfile}
+              className="w-full px-3 py-1.5 h-9 rounded-md border border-slate-200 bg-white text-xs text-slate-800 font-medium cursor-pointer focus:outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
             >
               <option value="checker">Checker</option>
               <option value="company_admin">Company Admin</option>
@@ -651,7 +663,8 @@ function EditUserRow({ user, companies, currentUserRole, onSaved, onCancel }: Ed
               <select
                 value={companyId}
                 onChange={(e) => setCompanyId(e.target.value)}
-                className="w-full px-3 py-1.5 h-9 rounded-md border border-slate-200 bg-white text-xs text-slate-800 font-medium cursor-pointer focus:outline-none focus:border-blue-500"
+                disabled={isOwnProfile}
+                className="w-full px-3 py-1.5 h-9 rounded-md border border-slate-200 bg-white text-xs text-slate-800 font-medium cursor-pointer focus:outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
               >
                 <option value="">Global Enterprise Scope</option>
                 {companies.map((c) => (
@@ -672,8 +685,9 @@ function EditUserRow({ user, companies, currentUserRole, onSaved, onCancel }: Ed
         <div className="flex gap-2">
           <button
             onClick={handleSave}
-            disabled={saving}
-            className="px-3.5 py-1.5 bg-[#0e1734] hover:bg-[#16224c] text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            disabled={saving || isOwnProfile}
+            className="px-3.5 py-1.5 bg-[#0e1734] hover:bg-[#16224c] text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            title={isOwnProfile ? "Your profile is read-only" : undefined}
           >
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
             Save Account
@@ -961,8 +975,9 @@ export function UserManagementCard({ users, companies = [], currentUserId, curre
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => setEditingId(editingId === user.id ? null : user.id)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                            title="Edit account scope and role"
+                            disabled={currentUserRole === "company_admin" && user.id === currentUserId}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                            title={currentUserRole === "company_admin" && user.id === currentUserId ? "Your profile is read-only" : "Edit account scope and role"}
                           >
                             {editingId === user.id ? <X className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
                           </button>
@@ -1004,6 +1019,7 @@ export function UserManagementCard({ users, companies = [], currentUserId, curre
                         user={user}
                         companies={companies}
                         currentUserRole={currentUserRole}
+                        currentUserId={currentUserId}
                         onSaved={() => {
                           setEditingId(null);
                           onSaved();
