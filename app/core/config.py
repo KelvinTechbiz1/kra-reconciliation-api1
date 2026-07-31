@@ -72,6 +72,7 @@ class Settings(BaseSettings):
     sap_verify_ssl: bool = Field(default=True, alias="SAP_VERIFY_SSL")
     sap_base_amount_policy: BaseAmountPolicy = Field(default=BaseAmountPolicy.SKIP, alias="SAP_BASE_AMOUNT_POLICY")
     sap_page_size: int = Field(default=1000, ge=1, le=1000, alias="SAP_PAGE_SIZE")
+    sap_request_timeout: float = Field(default=120.0, ge=5.0, le=600.0, alias="SAP_REQUEST_TIMEOUT")
 
     amount_tolerance: Decimal = Field(default=Decimal("10.00"), alias="AMOUNT_TOLERANCE")
 

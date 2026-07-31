@@ -39,7 +39,7 @@ class SAPClient:
         self.verify_ssl = verify_ssl
 
         # Initialize httpx Client
-        self.client = httpx.Client(verify=self.verify_ssl, timeout=30.0)
+        self.client = httpx.Client(verify=self.verify_ssl, timeout=get_settings().sap_request_timeout)
         self.session_id = None
         self.cookies = {}
         self.session_expiry = None
