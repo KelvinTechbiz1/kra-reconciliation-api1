@@ -25,6 +25,7 @@ interface KRAVATMappingEditorProps {
 
 const SCHEDULE_GUIDE = [
   { prefix: "SEC_B", file: "SEC_B_WITH_VAT_PIN1.csv", name: "B – General Rated Supplies (Sales)", rate: "16%" },
+  { prefix: "SEC_E", file: "SEC_E_WITH_VAT_PIN1.csv", name: "E – Exempt Sales (eTIMS/TIMS)", rate: "Exempt" },
   { prefix: "SEC_F", file: "SEC_F_WITH_VAT_PIN1.csv", name: "F – General Rated Purchases (local)", rate: "16%" },
   { prefix: "SEC_G", file: "SEC_G_WITH_VAT_PIN1.csv", name: "G – Other Rated Purchases", rate: "8% (Petroleum)" },
   { prefix: "SEC_H", file: "SEC_H_WITH_VAT_PIN1.csv", name: "H – Zero-Rated Purchases", rate: "0%" },

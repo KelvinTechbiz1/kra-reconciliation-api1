@@ -12,6 +12,10 @@ DEFAULT_PARSING_PROFILES: Dict[str, KRAParsingProfileItem] = {
         pin_column=0, partner_name_column=1, invoice_number_column=2,
         invoice_date_column=3, cu_number_column=4, base_amount_column=6
     ),
+    "SEC_E": KRAParsingProfileItem(
+        pin_column=0, partner_name_column=1, invoice_number_column=2,
+        invoice_date_column=3, cu_number_column=4, base_amount_column=6
+    ),
     "SEC_F": KRAParsingProfileItem(
         pin_column=1, partner_name_column=2, invoice_number_column=None,
         invoice_date_column=3, cu_number_column=4, base_amount_column=7

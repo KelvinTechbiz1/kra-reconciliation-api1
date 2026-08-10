@@ -39,7 +39,7 @@ const KRA_DEFAULT_COLUMNS: Record<string, number> = {
   base_amount_column: 5,
 };
 
-const availableSections = ["SEC_B", "SEC_F", "SEC_G", "SEC_H", "SEC_I"];
+const availableSections = ["SEC_B", "SEC_E", "SEC_F", "SEC_G", "SEC_H", "SEC_I"];
 
 export function KRAParsingProfilesCard({ settings, selectedCompanyId, onSaved }: KRAParsingProfilesCardProps) {
   const [kraParsingProfiles, setKraParsingProfiles] = useState<KRAParsingProfilesConfig>(

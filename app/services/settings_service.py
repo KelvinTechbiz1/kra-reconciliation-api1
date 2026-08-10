@@ -52,6 +52,7 @@ DEFAULT_KRA_PARSING_PROFILES = {
     "schema_version": 1,
     "profiles": {
         "SEC_B": {"pin_column": 0, "partner_name_column": 1, "invoice_number_column": 2, "invoice_date_column": 3, "cu_number_column": 4, "base_amount_column": 6},
+        "SEC_E": {"pin_column": 0, "partner_name_column": 1, "invoice_number_column": 2, "invoice_date_column": 3, "cu_number_column": 4, "base_amount_column": 6},
         "SEC_F": {"pin_column": 1, "partner_name_column": 2, "invoice_number_column": None, "invoice_date_column": 3, "cu_number_column": 4, "base_amount_column": 7},
         "SEC_G": {"pin_column": 1, "partner_name_column": 2, "invoice_number_column": None, "invoice_date_column": 3, "cu_number_column": 4, "base_amount_column": 7},
         "SEC_H": {"pin_column": 1, "partner_name_column": 2, "invoice_number_column": None, "invoice_date_column": 3, "cu_number_column": 4, "base_amount_column": 8},
@@ -149,6 +150,7 @@ class SettingsService:
     def seed_default_kra_section_profiles(cls, db: Session):
         defaults = [
             {"section_prefix": "SEC_B", "canonical_rate": "16", "description": "B – General Rated Supplies (Sales) 16%"},
+            {"section_prefix": "SEC_E", "canonical_rate": "EXEMPT", "description": "E – Exempt Sales (eTIMS/TIMS) Exempt"},
             {"section_prefix": "SEC_F", "canonical_rate": "16", "description": "F – General Rated Purchases (local) 16%"},
             {"section_prefix": "SEC_G", "canonical_rate": "8", "description": "G – Other Rated Purchases 8% (Petroleum)"},
             {"section_prefix": "SEC_H", "canonical_rate": "0", "description": "H – Zero-Rated Purchases 0%"},
