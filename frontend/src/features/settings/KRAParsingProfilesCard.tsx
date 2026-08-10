@@ -30,14 +30,16 @@ const KRA_FIELDS = [
   { key: "base_amount_column", label: "Base Amount Column Index" },
 ] as const;
 
-const KRA_DEFAULT_COLUMNS: Record<string, number> = {
-  pin_column: 0,
-  partner_name_column: 1,
-  invoice_number_column: 2,
-  invoice_date_column: 3,
-  cu_number_column: 4,
-  base_amount_column: 5,
+const SECTION_DEFAULTS: Record<string, Record<string, number | null>> = {
+  SEC_B: { pin_column: 0, partner_name_column: 1, invoice_number_column: 2, invoice_date_column: 3, cu_number_column: 4, base_amount_column: 6 },
+  SEC_E: { pin_column: 0, partner_name_column: 1, invoice_number_column: 2, invoice_date_column: 3, cu_number_column: 4, base_amount_column: 6 },
+  SEC_F: { pin_column: 1, partner_name_column: 2, invoice_number_column: null, invoice_date_column: 3, cu_number_column: 4, base_amount_column: 7 },
+  SEC_G: { pin_column: 1, partner_name_column: 2, invoice_number_column: null, invoice_date_column: 3, cu_number_column: 4, base_amount_column: 7 },
+  SEC_H: { pin_column: 1, partner_name_column: 2, invoice_number_column: null, invoice_date_column: 3, cu_number_column: 4, base_amount_column: 8 },
+  SEC_I: { pin_column: 1, partner_name_column: 2, invoice_number_column: null, invoice_date_column: 3, cu_number_column: 4, base_amount_column: 7 },
 };
+
+const KRA_DEFAULT_COLUMNS = SECTION_DEFAULTS.SEC_B;
 
 const availableSections = ["SEC_B", "SEC_E", "SEC_F", "SEC_G", "SEC_H", "SEC_I"];
 
@@ -68,13 +70,13 @@ export function KRAParsingProfilesCard({ settings, selectedCompanyId, onSaved }:
   };
 
   const handleApplyDefaults = (section: string) => {
+    const defaults = SECTION_DEFAULTS[section] || KRA_DEFAULT_COLUMNS;
     setKraParsingProfiles((prev) => ({
       ...prev,
       profiles: {
         ...prev.profiles,
         [section]: {
-          ...prev.profiles[section],
-          ...KRA_DEFAULT_COLUMNS,
+          ...defaults,
         },
       },
     }));

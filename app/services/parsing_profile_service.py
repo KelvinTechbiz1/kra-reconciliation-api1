@@ -73,9 +73,11 @@ class ParsingProfileService:
         """Looks up the parsing profile for a specific section (e.g., 'SEC_B')."""
         config = cls.get_profiles(db, company_id)
         prefix_upper = section_prefix.strip().upper()
-        if prefix_upper not in config.profiles:
-            raise ParsingProfileError(f"Unknown KRA section '{prefix_upper}'. Configure a parsing profile before importing this file.")
-        return config.profiles[prefix_upper]
+        if prefix_upper in config.profiles:
+            return config.profiles[prefix_upper]
+        if prefix_upper in DEFAULT_PARSING_PROFILES:
+            return DEFAULT_PARSING_PROFILES[prefix_upper]
+        raise ParsingProfileError(f"Unknown KRA section '{prefix_upper}'. Configure a parsing profile before importing this file.")
 
     @classmethod
     def _get_default_profiles(cls) -> Dict[str, KRAParsingProfileItem]:
