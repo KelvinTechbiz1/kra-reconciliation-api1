@@ -112,3 +112,43 @@ def test_delete_custom_section_profile(db_session):
     # Expect ParsingProfileError for SEC_J now
     with pytest.raises(ParsingProfileError):
         ParsingProfileService.get_required_profile(db_session, "SEC_J", company_id=company_id)
+
+
+def test_parse_custom_section_csv_requires_vat_mapping(db_session):
+    from fastapi import UploadFile
+    import io
+    from app.services import kra_service
+
+    company_id = 3
+    setting = SettingsService.get_or_create_company_settings(db_session, company_id)
+
+    # 1. Add parsing profile for SEC_J
+    updated_profiles = dict(setting.kra_parsing_profiles.get("profiles", {}))
+    updated_profiles["SEC_J"] = {
+        "pin_column": 0, "partner_name_column": 1, "invoice_number_column": 2,
+        "invoice_date_column": 3, "cu_number_column": 4, "base_amount_column": 6
+    }
+    setting.kra_parsing_profiles = {"schema_version": 1, "profiles": updated_profiles}
+    setting.version += 1
+    db_session.commit()
+
+    csv_data = b"PIN,Customer,Invoice,Date,CU,VAT,Amount\nP051393568M,Test Customer,INV-001,02/03/2026,|0190439340000000455,16,1000.00\n"
+    upload_file = UploadFile(filename="SEC_J_CUSTOM_FILE.csv", file=io.BytesIO(csv_data))
+
+    # 2. Before VAT mapping is added: expect HTTP 400 with detail asking user to add VAT mapping
+    with pytest.raises(HTTPException) as exc_info:
+        kra_service.parse_kra_csv(upload_file, db_session, company_id=company_id)
+    assert exc_info.value.status_code == 400
+    assert "No KRA VAT mapping configured for section 'SEC_J'" in exc_info.value.detail
+
+    # 3. Add VAT mapping for SEC_J
+    db_session.add(KRAVATMapping(section_prefix="SEC_J", canonical_rate="16", description="J - Custom Section 16%"))
+    db_session.commit()
+
+    # 4. Re-upload SEC_J: now parses successfully!
+    upload_file.file.seek(0)
+    res = kra_service.parse_kra_csv(upload_file, db_session, company_id=company_id)
+    assert res.parsed == 1
+    assert res.errors_count == 0
+    assert len(res.invoices) == 1
+

@@ -109,12 +109,13 @@ def parse_kra_csv(file: UploadFile, db: Session, company_id: int | None = None) 
             detail=str(e)
         )
 
-    # Lookup VAT mapping independently
-    vat_mapping = db.query(KRAVATMapping).filter(KRAVATMapping.section_prefix == section_prefix).first()
+    # Lookup VAT mapping independently (case-insensitive)
+    from sqlalchemy import func
+    vat_mapping = db.query(KRAVATMapping).filter(func.upper(KRAVATMapping.section_prefix) == section_prefix.upper()).first()
     if not vat_mapping:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No VAT mapping configured for KRA section '{section_prefix}'. Please configure it in settings."
+            detail=f"No KRA VAT mapping configured for section '{section_prefix}'. Please add a VAT mapping for '{section_prefix}' under Settings > KRA VAT Mappings."
         )
 
     # VAT Group must match the SAP representation (e.g. "16", "0", "8"), since

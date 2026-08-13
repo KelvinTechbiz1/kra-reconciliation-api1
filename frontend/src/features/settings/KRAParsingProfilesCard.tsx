@@ -151,7 +151,7 @@ export function KRAParsingProfilesCard({ settings, selectedCompanyId, onSaved }:
 
     setActiveProfileTab(formattedPrefix);
     setIsAddModalOpen(false);
-    notify(`Created profile for ${formattedPrefix}. Save changes to persist.`, "success");
+    notify(`Created profile for ${formattedPrefix}. Please ensure ${formattedPrefix} is also mapped in KRA VAT Mappings below and save your settings.`, "success");
   };
 
   const handleDeleteSectionProfile = (section: string) => {
