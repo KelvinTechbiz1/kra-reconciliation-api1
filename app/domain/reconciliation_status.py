@@ -9,6 +9,8 @@ class ReconciliationStatus(str, Enum):
     MISSING_CU_NUMBER   = "Missing CU Number"
     AMOUNT_MISMATCH     = "Amount Mismatch"
     VAT_MISMATCH        = "VAT Mismatch"
+    CU_MISMATCH         = "CU Mismatch"
+    PIN_MISMATCH        = "PIN Mismatch"
     MULTIPLE_MISMATCHES = "Multiple Mismatches"
     DUPLICATE_SOURCE_KEY = "Duplicate Source Key"
 

@@ -59,6 +59,8 @@ NEEDS_REVIEW_STATUSES = frozenset({
     ReconciliationStatus.MISSING_IN_KRA,
     ReconciliationStatus.AMOUNT_MISMATCH,
     ReconciliationStatus.VAT_MISMATCH,
+    ReconciliationStatus.CU_MISMATCH,
+    ReconciliationStatus.PIN_MISMATCH,
     ReconciliationStatus.MULTIPLE_MISMATCHES,
 })
 
@@ -117,6 +119,24 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
                     _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_TAX_BREAKDOWN,
                 ),
                 statuses=frozenset({ReconciliationStatus.VAT_MISMATCH}),
+            ),
+            SheetDefinition(
+                title="CU Mismatch",
+                columns=(
+                    _CU_COL,
+                    _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_TAX_BREAKDOWN,
+                    _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_TAX_BREAKDOWN,
+                ),
+                statuses=frozenset({ReconciliationStatus.CU_MISMATCH}),
+            ),
+            SheetDefinition(
+                title="PIN Mismatch",
+                columns=(
+                    _CU_COL,
+                    _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_TAX_BREAKDOWN,
+                    _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_TAX_BREAKDOWN,
+                ),
+                statuses=frozenset({ReconciliationStatus.PIN_MISMATCH}),
             ),
             SheetDefinition(
                 title="Duplicate CU",

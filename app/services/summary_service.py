@@ -16,6 +16,8 @@ def build_summary(
     mismatches = sum(1 for r in rows if r.status in (
         ReconciliationStatus.AMOUNT_MISMATCH,
         ReconciliationStatus.VAT_MISMATCH,
+        ReconciliationStatus.CU_MISMATCH,
+        ReconciliationStatus.PIN_MISMATCH,
         ReconciliationStatus.MULTIPLE_MISMATCHES,
     ))
     duplicate_cu = sum(1 for r in rows if r.status == ReconciliationStatus.DUPLICATE_SOURCE_KEY)

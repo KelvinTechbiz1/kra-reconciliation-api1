@@ -11,6 +11,7 @@ class DifferenceField(str, Enum):
     VAT_GROUP = "vat_group"
     INVOICE_DATE = "invoice_date"
     CU_NUMBER = "cu_number"
+    PIN = "pin"
 
 class Difference(BaseModel):
     field: DifferenceField

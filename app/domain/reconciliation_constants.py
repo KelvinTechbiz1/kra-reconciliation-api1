@@ -14,6 +14,8 @@ STATUS_ORDER: tuple[ReconciliationStatus, ...] = (
     ReconciliationStatus.MULTIPLE_MISMATCHES,
     ReconciliationStatus.AMOUNT_MISMATCH,
     ReconciliationStatus.VAT_MISMATCH,
+    ReconciliationStatus.CU_MISMATCH,
+    ReconciliationStatus.PIN_MISMATCH,
     ReconciliationStatus.MATCH,
 )
 
@@ -30,6 +32,8 @@ REMARK_MAP: dict[ReconciliationStatus, str] = {
     ReconciliationStatus.MATCH:               "Match",
     ReconciliationStatus.AMOUNT_MISMATCH:     "Amount Mismatch",
     ReconciliationStatus.VAT_MISMATCH:        "VAT Mismatch",
+    ReconciliationStatus.CU_MISMATCH:         "CU Mismatch",
+    ReconciliationStatus.PIN_MISMATCH:        "PIN Mismatch",
     ReconciliationStatus.MULTIPLE_MISMATCHES: "Multiple Mismatches",
     ReconciliationStatus.MISSING_IN_SAP:      "Missing in SAP",
     ReconciliationStatus.MISSING_IN_KRA:      "Missing in KRA",
@@ -43,5 +47,5 @@ REMARK_MAP: dict[ReconciliationStatus, str] = {
 # STATUS_PRIORITY_VERSION — increment ONLY when STATUS_ORDER changes
 # EXPORT_SCHEMA_VERSION   — increment ONLY when workbook layout or Export.json structure changes
 # REMARK_MAP              — change wording freely; no version tracked
-STATUS_PRIORITY_VERSION: str = "2"
+STATUS_PRIORITY_VERSION: str = "3"
 EXPORT_SCHEMA_VERSION:   str = "2.0"

@@ -568,6 +568,8 @@ def test_worksheet_order_preservation(client, auth_headers):
             "Missing in KRA",
             "Amount Mismatch",
             "VAT Mismatch",
+            "CU Mismatch",
+            "PIN Mismatch",
             "Duplicate CU",
             "Multiple Issues"
         ]

@@ -8,7 +8,7 @@
 
 - **SAP Business One Service Layer integration** — async `httpx` client, session (cookie) management, and OData `Prefer`-header pagination for pulling sales (A/R) and purchase (A/P) invoices by date range.
 - **KRA iTax CSV ingestion** — validates headers, data types, and duplicates; configurable parsing profiles with field aliases; downloadable CSV templates.
-- **Reconciliation engine** — O(n) hash-based matching algorithm that classifies every invoice as `Matched`, `Mismatch`, `SAP Only`, or `KRA Only`, with field-level discrepancy remarks (invoice date, base amount, VAT group, CU number) using `Decimal`-safe comparisons.
+- **Reconciliation engine** — O(n) CU-number-based matching with a fallback pairing heuristic for CU typos. Classifies every document into ten canonical statuses (`Match`, `Missing in SAP/KRA`, `Missing CU Number`, `Amount/VAT/CU/PIN Mismatch`, `Multiple Mismatches`, `Duplicate Source Key`) with `Decimal`-safe comparisons and field-level discrepancy remarks.
 - **Multi-company support** — per-company SAP connections, settings, base-amount policies, VAT mappings, and CU source configuration.
 - **Background SAP loading** — long-running invoice loads with status tracking and polling endpoints.
 - **Reporting & export** — styled Excel (XLSX) workbooks and ZIP archive exports via pluggable export strategies.
@@ -136,7 +136,7 @@ Open <http://localhost:8000/docs> for the complete, interactive OpenAPI spec.
 
 1. **Load** — the API pulls invoices from SAP Business One (Service Layer) for a date range and creates a session.
 2. **Import** — the user uploads a KRA iTax CSV; headers, types, and duplicates are validated.
-3. **Compare** — an O(n) hash-based engine indexes both datasets by invoice number, then evaluates each key for presence in both, one, or neither. Mismatches produce detailed remarks, e.g. `Base Amount differs (SAP: 1200.00, KRA: 1250.00)`.
+3. **Compare** — an O(n) engine groups both datasets by CU number, pairs documents (with a fallback heuristic for minor CU typos), and evaluates amount, VAT breakdown, CU number, and KRA PIN. Each pair is classified into one of ten statuses and produces field-level remarks, e.g. `Base Amount differs (SAP: 1200.00, KRA: 1250.00)`.
 4. **Export** — matched/mismatched results are exported as styled Excel or ZIP archives.
 
 ## Documentation

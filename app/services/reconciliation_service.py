@@ -22,16 +22,19 @@ from app.services.normalization import normalize_partner_name, normalize_pin
 
 def check_pin_matches(sap_pin_raw: Invoice | str | None, kra_pin_raw: Invoice | str | None) -> bool:
     """
-    PIN matches are advisory. If either PIN is missing, we consider it a 'match' 
-    so the UI does not highlight it as a difference.
+    PIN comparison. A one-sided missing PIN (present on one side only) is treated
+    as a mismatch so incomplete data surfaces for review. If both PINs are missing
+    there is nothing to compare, so the check passes.
     """
     sap_str = sap_pin_raw.pin if isinstance(sap_pin_raw, Invoice) else sap_pin_raw
     kra_str = kra_pin_raw.pin if isinstance(kra_pin_raw, Invoice) else kra_pin_raw
 
     sap_pin = normalize_pin(sap_str)
     kra_pin = normalize_pin(kra_str)
-    if not sap_pin or not kra_pin:
+    if not sap_pin and not kra_pin:
         return True
+    if not sap_pin or not kra_pin:
+        return False
     return sap_pin == kra_pin
 
 
@@ -230,6 +233,14 @@ def reconcile_invoices(
                 kra_value=_format_vat_breakdown_str(kra_norm.tax_breakdown)
             ))
 
+        if not pin_matches:
+            differences.append(Difference(
+                field=DifferenceField.PIN,
+                match=False,
+                sap_value=sap_norm.pin or "—",
+                kra_value=kra_norm.pin or "—"
+            ))
+
         # Stage 7: Status Classification
         if len(differences) > 1:
             status = ReconciliationStatus.MULTIPLE_MISMATCHES
@@ -238,7 +249,9 @@ def reconcile_invoices(
         elif not vat_breakdown_match:
             status = ReconciliationStatus.VAT_MISMATCH
         elif not cu_match:
-            status = ReconciliationStatus.VAT_MISMATCH  # route to 02 Exceptions.xlsx for CU review
+            status = ReconciliationStatus.CU_MISMATCH
+        elif not pin_matches:
+            status = ReconciliationStatus.PIN_MISMATCH
         else:
             status = ReconciliationStatus.MATCH
 
@@ -328,6 +341,8 @@ def reconcile_invoices(
     mismatches = sum(1 for r in results if r.status in (
         ReconciliationStatus.AMOUNT_MISMATCH,
         ReconciliationStatus.VAT_MISMATCH,
+        ReconciliationStatus.CU_MISMATCH,
+        ReconciliationStatus.PIN_MISMATCH,
         ReconciliationStatus.MULTIPLE_MISMATCHES
     ))
 

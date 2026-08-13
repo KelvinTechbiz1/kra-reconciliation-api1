@@ -113,6 +113,8 @@ def _build_summary_workbook(
             ("Missing in KRA", sum(1 for r in rows if r.status == ReconciliationStatus.MISSING_IN_KRA)),
             ("Amount Mismatch", sum(1 for r in rows if r.status == ReconciliationStatus.AMOUNT_MISMATCH)),
             ("VAT Mismatch", sum(1 for r in rows if r.status == ReconciliationStatus.VAT_MISMATCH)),
+            ("CU Mismatch", sum(1 for r in rows if r.status == ReconciliationStatus.CU_MISMATCH)),
+            ("PIN Mismatch", sum(1 for r in rows if r.status == ReconciliationStatus.PIN_MISMATCH)),
             ("Duplicate CU", sum(1 for r in rows if r.status == ReconciliationStatus.DUPLICATE_SOURCE_KEY)),
             ("Multiple Issues", sum(1 for r in rows if r.status == ReconciliationStatus.MULTIPLE_MISMATCHES)),
         ]

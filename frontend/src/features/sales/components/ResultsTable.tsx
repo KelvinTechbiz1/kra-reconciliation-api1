@@ -61,7 +61,7 @@ interface ResultsTableProps {
   onLoadMore?: () => void;
 }
 
-type FilterType = "All" | "Issues" | "Matches" | "Missing CU" | "Missing SAP" | "Missing KRA" | "Amount" | "VAT" | "Date" | "Multiple";
+type FilterType = "All" | "Issues" | "Matches" | "Missing CU" | "Missing SAP" | "Missing KRA" | "Amount" | "VAT" | "CU" | "PIN" | "Date" | "Multiple";
 type SortField = "pin" | "invoice_number" | "invoice_date" | "base_amount" | "vat_group" | "status";
 type SortOrder = "asc" | "desc" | null;
 
@@ -218,11 +218,13 @@ export function ResultsTable({
         if (st === "MISSING_IN_KRA" || st === "Missing in KRA") filterSet.add("Missing KRA");
         if (st === "AMOUNT_MISMATCH") filterSet.add("Amount");
         if (st === "VAT_MISMATCH") filterSet.add("VAT");
+        if (st === "CU_MISMATCH" || st === "CU Mismatch") filterSet.add("CU");
+        if (st === "PIN_MISMATCH" || st === "PIN Mismatch") filterSet.add("PIN");
         if (st === "DATE_MISMATCH") filterSet.add("Date");
         if (st === "MULTIPLE_MISMATCHES" || st === "DUPLICATE_SOURCE_KEY") filterSet.add("Multiple");
       }
     });
-    const order: FilterType[] = ["All", "Issues", "Matches", "Missing CU", "Missing SAP", "Missing KRA", "Amount", "VAT", "Date", "Multiple"];
+    const order: FilterType[] = ["All", "Issues", "Matches", "Missing CU", "Missing SAP", "Missing KRA", "Amount", "VAT", "CU", "PIN", "Date", "Multiple"];
     return order.filter(f => filterSet.has(f));
   }, [results]);
 
@@ -239,6 +241,8 @@ export function ResultsTable({
       if (activeFilter === "Missing KRA") return st === "MISSING_IN_KRA" || st === "Missing in KRA";
       if (activeFilter === "Amount") return st === "AMOUNT_MISMATCH";
       if (activeFilter === "VAT") return st === "VAT_MISMATCH";
+      if (activeFilter === "CU") return st === "CU_MISMATCH" || st === "CU Mismatch";
+      if (activeFilter === "PIN") return st === "PIN_MISMATCH" || st === "PIN Mismatch";
       if (activeFilter === "Date") return st === "DATE_MISMATCH";
       if (activeFilter === "Multiple") return st === "MULTIPLE_MISMATCHES" || st === "DUPLICATE_SOURCE_KEY";
       return true;
@@ -429,6 +433,8 @@ export function ResultsTable({
                   remarkColor = "text-amber-600";
                   if (r.status === "AMOUNT_MISMATCH") remark = "Amount Mismatch";
                   else if (r.status === "VAT_MISMATCH") remark = "VAT Mismatch";
+                  else if (r.status === "CU_MISMATCH" || r.status === "CU Mismatch") remark = "CU Mismatch";
+                  else if (r.status === "PIN_MISMATCH" || r.status === "PIN Mismatch") remark = "PIN Mismatch";
                   else if (r.status === "DATE_MISMATCH") remark = "Date Mismatch";
                   else if (r.status === "MULTIPLE_MISMATCHES") remark = "Multiple Mismatches";
                   else if (r.status === "DUPLICATE_SOURCE_KEY") remark = "Duplicate MatchKey";

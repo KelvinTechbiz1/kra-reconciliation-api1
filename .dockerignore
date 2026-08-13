@@ -26,6 +26,21 @@ frontend/out
 .idea
 .codegraph
 UI-UX
+.agents
+tests
+docs
+*.xlsx
+test_*.py
+check_db.py
+check_gulf.py
+check_gulf_reconcile.py
+create_admin.py
+fix_db_flags.py
+test_fuzzy.py
+test_gulf.py
+test_normalization_standalone.py
+test_reconcile_flags.py
+test_reconciliation_unit.py
 
 .env
 .env.*

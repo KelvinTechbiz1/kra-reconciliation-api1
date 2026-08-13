@@ -351,6 +351,78 @@ def test_vat_breakdown_mismatch_with_matching_amount():
     assert res.differences[0].field == DifferenceField.VAT_GROUP
 
 
+def test_cu_number_difference_routed_to_cu_mismatch_not_vat_mismatch():
+    # SAP and KRA documents match on amount + VAT but the CU numbers differ
+    # (a typo, e.g. 190349340000000511 vs 190439340000000511). These are
+    # fallback-paired and must surface as CU Mismatch, NOT a false VAT Mismatch.
+    sap_typo = Invoice(
+        pin="P1", partner_name="AGRICHEM AFRICA LIMITED", invoice_number="1132",
+        invoice_date=date(2026, 7, 15), cu_number="190349340000000511", vat_group="16",
+        base_amount=Decimal("243810.00"), source=InvoiceSource.SAP
+    )
+    kra_correct = Invoice(
+        pin="P1", partner_name="AGRICHEM AFRICA LIMITED", invoice_number="K1",
+        invoice_date=date(2026, 7, 15), cu_number="190439340000000511", vat_group="16",
+        base_amount=Decimal("243810.00"), source=InvoiceSource.KRA
+    )
+
+    summary, results = reconciliation_service.reconcile_invoices([sap_typo], [kra_correct])
+
+    assert len(results) == 1
+    res = results[0]
+    assert res.status == ReconciliationStatus.CU_MISMATCH
+    assert res.amount_match is True
+    assert res.vat_match is True
+    assert len(res.differences) == 1
+    assert res.differences[0].field == DifferenceField.CU_NUMBER
+    assert summary.mismatches == 1
+
+
+def test_one_sided_missing_pin_is_pin_mismatch():
+    # SAP invoice has no PIN while the KRA invoice does. This must be flagged
+    # as a PIN Mismatch instead of silently passing as a Match.
+    sap_no_pin = Invoice(
+        pin="", partner_name="Savannah Cement Limited", invoice_number="1131",
+        invoice_date=date(2026, 7, 14), cu_number="190439340000000510", vat_group="16",
+        base_amount=Decimal("592275.00"), source=InvoiceSource.SAP
+    )
+    kra_with_pin = Invoice(
+        pin="P051119362D", partner_name="Savannah Cement Limited", invoice_number="K1",
+        invoice_date=date(2026, 7, 14), cu_number="190439340000000510", vat_group="16",
+        base_amount=Decimal("592275.00"), source=InvoiceSource.KRA
+    )
+
+    summary, results = reconciliation_service.reconcile_invoices([sap_no_pin], [kra_with_pin])
+
+    assert len(results) == 1
+    res = results[0]
+    assert res.status == ReconciliationStatus.PIN_MISMATCH
+    assert res.pin_matches is False
+    assert res.amount_match is True
+    assert res.vat_match is True
+    assert summary.matches == 0
+    assert summary.mismatches == 1
+
+
+def test_both_pins_missing_is_not_a_pin_mismatch():
+    sap_no_pin = Invoice(
+        pin="", partner_name="CustA", invoice_number="INV1",
+        invoice_date=date(2026, 3, 1), cu_number="CU_NOPIN", vat_group="16",
+        base_amount=Decimal("100.00"), source=InvoiceSource.SAP
+    )
+    kra_no_pin = Invoice(
+        pin="", partner_name="CustA", invoice_number="INV1",
+        invoice_date=date(2026, 3, 1), cu_number="CU_NOPIN", vat_group="16",
+        base_amount=Decimal("100.00"), source=InvoiceSource.KRA
+    )
+
+    summary, results = reconciliation_service.reconcile_invoices([sap_no_pin], [kra_no_pin])
+
+    assert len(results) == 1
+    assert results[0].status == ReconciliationStatus.MATCH
+    assert results[0].pin_matches is True
+
+
 def test_decimal_normalization_and_order_independence():
     sap1 = Invoice(
         pin="P1", partner_name="Cust1", invoice_number="INV1",
