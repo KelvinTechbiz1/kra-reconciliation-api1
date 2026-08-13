@@ -142,10 +142,13 @@ class KRAParsingProfilesConfig(BaseModel):
     @field_validator("profiles")
     @classmethod
     def validate_section_keys(cls, v: Dict[str, KRAParsingProfileItem]) -> Dict[str, KRAParsingProfileItem]:
-        for k in v.keys():
-            if not re.match(r"^SEC_[A-Z]$", k):
-                raise ValueError(f"Invalid section identifier: {k}. Must match ^SEC_[A-Z]$")
-        return v
+        normalized: Dict[str, KRAParsingProfileItem] = {}
+        for k, item in v.items():
+            key_upper = k.strip().upper()
+            if not re.match(r"^SEC_[A-Z0-9]+$", key_upper):
+                raise ValueError(f"Invalid section identifier: {k}. Must match ^SEC_[A-Z0-9]+$ (e.g. SEC_B, SEC_J)")
+            normalized[key_upper] = item
+        return normalized
 
 
 class KRAVATMappingItem(BaseModel):

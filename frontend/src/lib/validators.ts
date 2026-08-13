@@ -81,3 +81,30 @@ export function validateKRAParsingProfileSection(
     messages,
   };
 }
+
+/**
+ * Validates a new KRA section prefix string (e.g., "SEC_J", "SEC_B").
+ * Must start with "SEC_" and consist of uppercase letters, numbers, or underscores.
+ */
+export function validateKRASectionPrefix(rawPrefix: string): { valid: boolean; formatted: string; error?: string } {
+  const trimmed = rawPrefix.trim().toUpperCase();
+  let prefix = trimmed;
+  if (prefix && !prefix.startsWith("SEC_")) {
+    prefix = `SEC_${prefix}`;
+  }
+
+  if (!prefix) {
+    return { valid: false, formatted: "", error: "Section prefix cannot be empty." };
+  }
+
+  if (!/^SEC_[A-Z0-9]+$/.test(prefix)) {
+    return {
+      valid: false,
+      formatted: prefix,
+      error: "Section identifier must match pattern SEC_... (e.g., SEC_J, SEC_B, SEC_J1).",
+    };
+  }
+
+  return { valid: true, formatted: prefix };
+}
+

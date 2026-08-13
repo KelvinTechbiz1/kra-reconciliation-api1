@@ -92,11 +92,11 @@ def parse_kra_csv(file: UploadFile, db: Session, company_id: int | None = None) 
     headers = [h.strip() for h in (rows[0] or [])]
 
     import re
-    match = re.match(r"^(SEC_[A-Z])", filename.upper())
+    match = re.match(r"^(SEC_[A-Z0-9]+)(?:[_.]|$)", filename.upper())
     if not match:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Filename '{filename}' must start with a valid KRA section prefix (e.g. SEC_B_...). Please rename the file correctly."
+            detail=f"Filename '{filename}' must start with a valid KRA section prefix (e.g. SEC_B_... or SEC_J_...). Please rename the file correctly."
         )
     section_prefix = match.group(1)
 

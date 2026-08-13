@@ -1,4 +1,4 @@
-import { indexToExcelColumnName, validateKRAParsingProfileSection } from "../validators";
+import { indexToExcelColumnName, validateKRAParsingProfileSection, validateKRASectionPrefix } from "../validators";
 
 export function runValidatorsTests(): boolean {
   let passed = true;
@@ -23,6 +23,25 @@ export function runValidatorsTests(): boolean {
   assertEqual(indexToExcelColumnName(-1), "", "Negative number -> empty string");
   assertEqual(indexToExcelColumnName(null), "", "Null -> empty string");
   assertEqual(indexToExcelColumnName(undefined), "", "Undefined -> empty string");
+
+  // --- Section Prefix Validator Tests ---
+  const resSecJ = validateKRASectionPrefix("SEC_J");
+  assertEqual(resSecJ.valid, true, "SEC_J valid");
+  assertEqual(resSecJ.formatted, "SEC_J", "SEC_J formatted correctly");
+
+  const resLowerJ = validateKRASectionPrefix("j");
+  assertEqual(resLowerJ.valid, true, "lower j valid auto-prefixed");
+  assertEqual(resLowerJ.formatted, "SEC_J", "lower j formatted to SEC_J");
+
+  const resSecJ1 = validateKRASectionPrefix("SEC_J1");
+  assertEqual(resSecJ1.valid, true, "SEC_J1 valid");
+  assertEqual(resSecJ1.formatted, "SEC_J1", "SEC_J1 formatted correctly");
+
+  const resInvalidChar = validateKRASectionPrefix("SEC_J!");
+  assertEqual(resInvalidChar.valid, false, "SEC_J! invalid character check");
+
+  const resEmpty = validateKRASectionPrefix("");
+  assertEqual(resEmpty.valid, false, "Empty section prefix invalid");
 
   // --- Profile Section Validation Tests ---
   // 1. Unique valid configuration
@@ -92,3 +111,4 @@ if (require.main === module) {
   const success = runValidatorsTests();
   process.exit(success ? 0 : 1);
 }
+
