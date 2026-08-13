@@ -37,7 +37,7 @@ Here is the complete compilation of your industrial attachment logbook entries a
 
 * Monday: Transitioned to my second project a hardware store platform. Reviewed the project scope with Kelvin and other engineers. I used google stitch to rapidly build and structure user interface wireframes. I planned to use same stack as previous project: Next.js, Supabase Cloudinary for images and videos.
 * Tuesday: Focused entirely on translating stitch mockups into functional Next.js components for the homepage. I linked the homepages category section to category page and its products. I set up supabase and cloudinary and started database design schema. Created a product and category new and update form to test.
-* Wednesday: Engineered a dynamic quotation request feature. Also added whatsapp integration learned during my first project.
+* Wednesday: Engineered a dynamic quotation request feature. Also added whatsapp integration learned during my first project. I built a quotation editor where staff can review and refine a request and generate a branded PDF with jsPDF before sending it to the customer.
 * Thursday: Worked on the admin dashboard, added KPI metrics for dashboard, product listings, and its CREATE/UPDATE forms, category listing and forms, quote listing and media for cloudinary management. I integrated the jspdf to generate quotations pdf based on quote request.
 * Friday: Worked on full project compilation and live production deployment handover. Kelvin helped me run final project audits, configured production environment variables, deployed to vercel and ran tests to confirm platform operates seamlessly before project sign-off.
 
