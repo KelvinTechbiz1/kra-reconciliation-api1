@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { KRAParsingProfilesConfig, SystemSettings } from "@/types/settings";
+import { KRAParsingProfileItem, KRAParsingProfilesConfig, SystemSettings } from "@/types/settings";
 import { fetchWithAuth } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/errors";
 import { indexToExcelColumnName, validateKRAParsingProfileSection } from "@/lib/validators";
@@ -30,7 +30,7 @@ const KRA_FIELDS = [
   { key: "base_amount_column", label: "Base Amount Column Index" },
 ] as const;
 
-const SECTION_DEFAULTS: Record<string, Record<string, number | null>> = {
+const SECTION_DEFAULTS: Record<string, KRAParsingProfileItem> = {
   SEC_B: { pin_column: 0, partner_name_column: 1, invoice_number_column: 2, invoice_date_column: 3, cu_number_column: 4, base_amount_column: 6 },
   SEC_E: { pin_column: 0, partner_name_column: 1, invoice_number_column: 2, invoice_date_column: 3, cu_number_column: 4, base_amount_column: 6 },
   SEC_F: { pin_column: 1, partner_name_column: 2, invoice_number_column: null, invoice_date_column: 3, cu_number_column: 4, base_amount_column: 7 },
@@ -39,7 +39,7 @@ const SECTION_DEFAULTS: Record<string, Record<string, number | null>> = {
   SEC_I: { pin_column: 1, partner_name_column: 2, invoice_number_column: null, invoice_date_column: 3, cu_number_column: 4, base_amount_column: 7 },
 };
 
-const KRA_DEFAULT_COLUMNS = SECTION_DEFAULTS.SEC_B;
+const KRA_DEFAULT_COLUMNS: KRAParsingProfileItem = SECTION_DEFAULTS.SEC_B;
 
 const availableSections = ["SEC_B", "SEC_E", "SEC_F", "SEC_G", "SEC_H", "SEC_I"];
 
@@ -55,18 +55,22 @@ export function KRAParsingProfilesCard({ settings, selectedCompanyId, onSaved }:
     );
   }, [settings.kra_parsing_profiles]);
 
-  const handleProfileChange = (section: string, field: string, value: string) => {
+  const handleProfileChange = (section: string, field: keyof KRAParsingProfileItem, value: string) => {
     const numValue = value === "" ? null : parseInt(value, 10);
-    setKraParsingProfiles((prev) => ({
-      ...prev,
-      profiles: {
-        ...prev.profiles,
-        [section]: {
-          ...prev.profiles[section],
-          [field]: numValue,
+    setKraParsingProfiles((prev) => {
+      const currentSection: KRAParsingProfileItem =
+        prev.profiles[section] || SECTION_DEFAULTS[section] || KRA_DEFAULT_COLUMNS;
+      return {
+        ...prev,
+        profiles: {
+          ...prev.profiles,
+          [section]: {
+            ...currentSection,
+            [field]: numValue,
+          },
         },
-      },
-    }));
+      };
+    });
   };
 
   const handleApplyDefaults = (section: string) => {
@@ -75,9 +79,7 @@ export function KRAParsingProfilesCard({ settings, selectedCompanyId, onSaved }:
       ...prev,
       profiles: {
         ...prev.profiles,
-        [section]: {
-          ...defaults,
-        },
+        [section]: defaults,
       },
     }));
   };

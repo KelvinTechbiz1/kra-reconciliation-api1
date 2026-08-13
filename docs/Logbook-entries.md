@@ -26,11 +26,11 @@ Here is the complete compilation of your industrial attachment logbook entries a
 ------------------------------
 ## WEEK 4 (15th June 2026 – 19th June 2026)
 
-* Monday: Dedicated the day to refining the ocean motors platform. I updated the state logic to allow customers to filter cars by condition types, such as Local Used, Brand New and debugging. Also designed and built the admin dashboard for vehicle inventory listing, and leads page under /admin path.
-* Tuesday: Today I focused on writing the full add new vehicles form used by administrators.
-* Wednesday: Added lead generation feature to platform by configuring a floating Whatsapp action components on the homepage and vehicle details page.
-* Thursday: Today I performed deep end-to-end user testing across vercel builds.
-* Friday: Began pushing for production and handover of the platform. I assisted in purchasing and provisioning the domain name via Name.com. I used cloudflares nameservers and entered Vercel's target record to cloudflare DNS dashboard. Also added domain name to google search console for indexing.
+* Monday: Dedicated the day to refining the ocean motors platform. I updated the state logic to allow customers to filter cars by condition types, such as Local Used, Brand New and debugging. Also designed and built the admin dashboard for vehicle inventory listing, and leads page under /admin path. I gave every vehicle a unique stock code and clean slug so each car gets its own shareable link.
+* Tuesday: Today I focused on writing the full add new vehicles form used by administrators. I added Cloudinary-backed image upload fields and validation that flags missing or invalid entries before saving.
+* Wednesday: Added lead generation feature to platform by configuring a floating Whatsapp action components on the homepage and vehicle details page. I refined the button's visibility and swapped the generic icon for the official WhatsApp icon.
+* Thursday: Today I performed deep end-to-end user testing across vercel builds. I walked the flows on desktop and mobile and noted the responsive layout issues to fix before launch.
+* Friday: Began pushing for production and handover of the platform. I assisted in purchasing and provisioning the domain name via Name.com. I used cloudflares nameservers and entered Vercel's target record to cloudflare DNS dashboard. Also added domain name to google search console for indexing. I also made the site fall back to demo inventory when external services are unavailable.
 
 ------------------------------
 ## WEEK 5 (22nd June 2026 – 26th June 2026)
@@ -95,5 +95,8 @@ Here is the complete compilation of your industrial attachment logbook entries a
 * Thursday: Spent the day testing the Docker setup locally. I ran into an Nginx issue where static assets under `_next/` were returning 404 errors. I fixed this by adjusting the alias path in `nginx.conf`. I also verified that database migrations run automatically on container startup using `docker-entrypoint.sh`.
 * Friday: Deployed the dockerized application to the DigitalOcean droplet. Kelvin helped me set up the server environment, configure the production `.env` variables, and pull the Docker images. We ran the containers and tested the live system with actual raw KRA files, and confirmed it matches records correctly.
 
-------------------------------
+-----------------------------
+## WEEK 12 (10th August 2026 – 14th August 2026)
+
+* Friday: Returned to the Ocean Motors dealership platform to polish it before it gets showcased to management. I reworked the homepage hero into a cleaner static car presentation, stripping out the heavy framing and auto-rotating animations that made it feel cluttered, and iterated on several design variations before settling on the final layout. I also refined the mobile vehicle details flow so the gallery, specifications, and enquiry call-to-action are easier to reach on a phone, and compacted the admin inventory into a tighter operational workspace for faster stock management. I closed the day by running Lighthouse audits against the production build and comparing the before and after scores with Kelvin to confirm the changes actually improved the page.-
 
