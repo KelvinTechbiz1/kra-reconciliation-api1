@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 from sqlalchemy.orm import Session
 from app.schemas.settings import KRAParsingProfileItem, KRAParsingProfilesConfig
 
@@ -42,8 +42,15 @@ DEFAULT_PARSING_PROFILES: Dict[str, KRAParsingProfileItem] = {
 }
 
 class ParsingProfileService:
-    _cached_profiles: Optional[KRAParsingProfilesConfig] = None
-    _cached_version: int = 0
+    # company_id -> (settings version the entry was built from, profiles).
+    #
+    # Keyed by company. The previous cache was a single process-global slot keyed only on
+    # `setting.version`, and every company's version starts at 1 — so the first company to
+    # load populated it and every other company at the same version was served ITS column
+    # indices. Symptom: a file that imports fine for one company fails for another with
+    # "Invalid date format", because the date column index belongs to someone else's layout.
+    # Worse, a wrong-but-parseable index imports silently incorrect amounts.
+    _profile_cache: Dict[int, Tuple[int, KRAParsingProfilesConfig]] = {}
 
     @classmethod
     def get_profiles(cls, db: Session, company_id: Optional[int] = None) -> KRAParsingProfilesConfig:
@@ -56,24 +63,24 @@ class ParsingProfileService:
 
         setting = SettingsService.get_or_create_company_settings(db, company_id)
 
-        # If cache is valid, return it
-        if cls._cached_profiles and cls._cached_version == setting.version:
-            return cls._cached_profiles
+        cached = cls._profile_cache.get(company_id)
+        if cached and cached[0] == setting.version:
+            return cached[1]
 
         # Fallback to defaults if empty
         if not setting.kra_parsing_profiles:
             defaults = cls._get_default_profiles()
             # We don't save it to DB here to avoid transaction side-effects during read.
             # It will be saved if the user updates settings.
-            cls._cached_profiles = KRAParsingProfilesConfig(profiles=defaults)
+            config = KRAParsingProfilesConfig(profiles=defaults)
         else:
             try:
-                cls._cached_profiles = KRAParsingProfilesConfig(**setting.kra_parsing_profiles)
+                config = KRAParsingProfilesConfig(**setting.kra_parsing_profiles)
             except Exception as e:
                 raise ParsingProfileError(f"Failed to parse KRA parsing profiles JSON: {e}")
 
-        cls._cached_version = setting.version
-        return cls._cached_profiles
+        cls._profile_cache[company_id] = (setting.version, config)
+        return config
 
     @classmethod
     def get_required_profile(cls, db: Session, section_prefix: str, company_id: Optional[int] = None) -> KRAParsingProfileItem:

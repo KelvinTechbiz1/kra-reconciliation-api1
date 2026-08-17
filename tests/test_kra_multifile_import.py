@@ -222,6 +222,104 @@ def test_operator_customizations_are_not_overwritten_by_defaults():
     assert _with_default_profiles(customized)["profiles"]["SEC_F"]["base_amount_column"] == 99
 
 
+# --------------------------------------------------------------------------- #
+# Multi-tenant profile isolation
+# --------------------------------------------------------------------------- #
+
+# Verbatim rows from a real SEC_E export. Date sits at index 3.
+SEC_E_ROWS = (
+    b"A000178861W,KARAMA MAHFUDH BREK ATHMAN,KRAMW019202207043370,02/05/2026,"
+    b"|0190433700000033286,ETIMS/TIMS sales,155100.00\n"
+)
+
+
+def _company_with_profiles(db, name, profiles):
+    from app.models.company import Company
+    from app.services.settings_service import SettingsService
+
+    company = Company(name=name)
+    db.add(company)
+    db.commit()
+    setting = SettingsService.get_or_create_company_settings(db, company.id)
+    setting.kra_parsing_profiles = profiles
+    db.commit()
+    return company
+
+
+def test_one_companys_profiles_are_never_served_to_another(db_session):
+    """Reproduces the production failure: same file, one company OK, another rejected.
+
+    Both companies sit at settings version 1. A cache keyed only on that version handed
+    the second company the first company's column indices.
+    """
+    from app.services.parsing_profile_service import ParsingProfileService
+
+    ParsingProfileService._profile_cache.clear()
+
+    # Company A has customized SEC_E so the date is read from a different column.
+    company_a = _company_with_profiles(db_session, "Company A", {
+        "schema_version": 1,
+        "profiles": {"SEC_E": {
+            "pin_column": 0, "partner_name_column": 1, "invoice_number_column": 2,
+            "invoice_date_column": 4, "cu_number_column": 3, "base_amount_column": 6,
+        }},
+    })
+    # Company B uses the standard layout, with the date at index 3.
+    company_b = _company_with_profiles(db_session, "Company B", {
+        "schema_version": 1,
+        "profiles": {"SEC_E": {
+            "pin_column": 0, "partner_name_column": 1, "invoice_number_column": 2,
+            "invoice_date_column": 3, "cu_number_column": 4, "base_amount_column": 6,
+        }},
+    })
+
+    setting_a = ParsingProfileService.get_profiles(db_session, company_a.id)
+    setting_b = ParsingProfileService.get_profiles(db_session, company_b.id)
+    assert setting_a.profiles["SEC_E"].invoice_date_column == 4
+    assert setting_b.profiles["SEC_E"].invoice_date_column == 3, (
+        "company B was served company A's profile"
+    )
+
+    # Company A loading first must not poison the parse for company B.
+    kra_service.parse_kra_csv(_upload("SEC_E_X.CSV", SEC_E_ROWS), db_session, company_id=company_a.id)
+    res_b = kra_service.parse_kra_csv(
+        _upload("SEC_E_WITH_VAT_PIN1.CSV", SEC_E_ROWS), db_session, company_id=company_b.id
+    )
+
+    assert res_b.errors_count == 0, res_b.errors
+    assert res_b.parsed == 1
+    assert res_b.invoices[0].invoice_date == date(2026, 5, 2)
+
+
+def test_profile_cache_still_refreshes_when_settings_change(db_session):
+    """Per-company keying must not stop an edit from taking effect."""
+    from app.services.parsing_profile_service import ParsingProfileService
+    from app.services.settings_service import SettingsService
+
+    ParsingProfileService._profile_cache.clear()
+    company = _company_with_profiles(db_session, "Company C", {
+        "schema_version": 1,
+        "profiles": {"SEC_E": {
+            "pin_column": 0, "partner_name_column": 1, "invoice_number_column": 2,
+            "invoice_date_column": 3, "cu_number_column": 4, "base_amount_column": 6,
+        }},
+    })
+    assert ParsingProfileService.get_profiles(db_session, company.id).profiles["SEC_E"].base_amount_column == 6
+
+    setting = SettingsService.get_or_create_company_settings(db_session, company.id)
+    setting.kra_parsing_profiles = {
+        "schema_version": 1,
+        "profiles": {"SEC_E": {
+            "pin_column": 0, "partner_name_column": 1, "invoice_number_column": 2,
+            "invoice_date_column": 3, "cu_number_column": 4, "base_amount_column": 5,
+        }},
+    }
+    setting.version += 1
+    db_session.commit()
+
+    assert ParsingProfileService.get_profiles(db_session, company.id).profiles["SEC_E"].base_amount_column == 5
+
+
 def test_batch_of_only_unreadable_files_still_fails_loudly(db_session):
     """With nothing importable there is no "rest" to keep - don't fake success."""
     from app.api.v1 import _session_helpers
