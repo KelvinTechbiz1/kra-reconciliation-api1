@@ -4,7 +4,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List
 from app.core.config import get_settings
 from app.core.exceptions import SAPQueryError
-from app.services.vat_normalizer import vat_normalizer
+from app.services.vat_normalizer import VatNormalizer, vat_normalizer
 from app.utils.vat_utils import normalize_vat_rate
 from app.domain.document_types import CanonicalReconciliationRow, IngestionProvenance
 
@@ -43,6 +43,36 @@ def extract_cu_number(raw_document: Dict[str, Any], cu_field: str) -> str:
     return str(value).strip().lstrip("|").strip() if value else ""
 
 
+def _handle_unmapped_vat_code(
+    code: str,
+    source_document_type: str,
+    invoice_number: str,
+    line_idx: int,
+    reconciliation_session_id: str,
+    unmapped_vat_policy: str | None,
+) -> None:
+    """
+    Reacts to a SAP VAT code with no configured mapping.
+
+    Such a code cannot be resolved to a canonical rate, so it becomes its own tax
+    bucket and will not match the KRA side. Honours the per-company
+    `unmapped_vat_policy`: REJECT_INVOICE fails the load loudly, anything else
+    (NEEDS_REVIEW, the default) logs a warning and lets the row through for review.
+    """
+    message = (
+        f"[ReconciliationSession: {reconciliation_session_id}] SAP {source_document_type} "
+        f"{invoice_number} line {line_idx} uses VAT code '{code}', which has no mapping "
+        f"configured under Settings > VAT Mappings. It cannot be resolved to a canonical "
+        f"rate and will not match the KRA side."
+    )
+    # Accept either the UnmappedVatPolicy enum or its raw string value: str() on a
+    # (str, Enum) member yields "UnmappedVatPolicy.REJECT_INVOICE", not the value.
+    policy = getattr(unmapped_vat_policy, "value", unmapped_vat_policy)
+    if str(policy or "").lower() == "reject_invoice":
+        raise SAPQueryError(message)
+    logger.warning(message)
+
+
 def map_sap_document_to_canonical_rows(
     raw_document: Dict[str, Any],
     source_document_type: str,
@@ -51,6 +81,8 @@ def map_sap_document_to_canonical_rows(
     reconciliation_session_id: str = "N/A",
     purchase_cu_source: str = "U_CUINV",
     base_amount_policy: str | None = None,
+    vat_normalizer_override: "VatNormalizer | None" = None,
+    unmapped_vat_policy: str | None = None,
 ) -> List[CanonicalReconciliationRow]:
     """
     Flattens a raw SAP document and maps it to a list of CanonicalReconciliationRow objects.
@@ -60,7 +92,18 @@ def map_sap_document_to_canonical_rows(
     settings = get_settings()
     # Per-company policy from system_settings takes precedence; falls back to the
     # global env setting (SAP_BASE_AMOUNT_POLICY) when no explicit policy is passed.
-    policy = str(base_amount_policy).lower() if base_amount_policy is not None else settings.sap_base_amount_policy.value
+    # Unwrap the enum before comparing: str() on a (str, Enum) member yields
+    # "BaseAmountPolicy.SKIP", so comparing str(policy) against "skip" never matched
+    # and every company silently fell through to the permissive ALLOW branch.
+    policy = (
+        str(getattr(base_amount_policy, "value", base_amount_policy)).lower()
+        if base_amount_policy is not None
+        else settings.sap_base_amount_policy.value
+    )
+
+    # Request-local normalizer carrying this company's configured VAT mappings;
+    # falls back to the built-in defaults when none was resolved.
+    normalizer = vat_normalizer_override or vat_normalizer
 
     # Extract header fields
     invoice_number_raw = raw_document.get("DocNum")
@@ -125,11 +168,18 @@ def map_sap_document_to_canonical_rows(
             if tax_pct > 0:
                 vat_group_str = normalize_vat_rate(tax_pct)
             else:
-                # Rate is 0.0: Check if VatGroup specifies EXEMPT classification
+                # Rate is 0.0: only the VatGroup code can tell exempt apart from
+                # zero-rated. If the code is unmapped we cannot make that call, so
+                # surface it rather than silently collapsing to "0".
                 vat_group_raw_str = str(vat_group_raw).strip() if vat_group_raw is not None else ""
-                if vat_group_raw_str and vat_normalizer.normalize("sap", reconciliation_type, vat_group_raw_str) == "EXEMPT":
+                if vat_group_raw_str and normalizer.normalize("sap", reconciliation_type, vat_group_raw_str) == "EXEMPT":
                     vat_group_str = "EXEMPT"
                 else:
+                    if vat_group_raw_str and not normalizer.is_mapped("sap", reconciliation_type, vat_group_raw_str):
+                        _handle_unmapped_vat_code(
+                            vat_group_raw_str, source_document_type, invoice_number,
+                            line_idx, reconciliation_session_id, unmapped_vat_policy,
+                        )
                     vat_group_str = "0"
         elif vat_group_raw is not None:
             vat_group_str = str(vat_group_raw).strip()
@@ -137,7 +187,12 @@ def map_sap_document_to_canonical_rows(
                 raise SAPQueryError(
                     f"SAP {source_document_type} {invoice_number} line {line_idx} has empty VatGroup"
                 )
-            vat_group_str = vat_normalizer.normalize("sap", reconciliation_type, vat_group_str)
+            if not normalizer.is_mapped("sap", reconciliation_type, vat_group_str):
+                _handle_unmapped_vat_code(
+                    vat_group_str, source_document_type, invoice_number,
+                    line_idx, reconciliation_session_id, unmapped_vat_policy,
+                )
+            vat_group_str = normalizer.normalize("sap", reconciliation_type, vat_group_str)
         else:
             raise SAPQueryError(
                 f"SAP {source_document_type} {invoice_number} line {line_idx} has missing tax fields (neither TaxPercentagePerRow nor VatGroup present)"

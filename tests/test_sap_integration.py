@@ -529,3 +529,132 @@ def test_sap_client_get_documents_pages_requires_page_size():
 
 
 
+
+
+# --- Unmapped SAP VAT codes must be surfaced, not silently collapsed ---
+
+def _doc_with_vat(vat_group, tax_pct=None):
+    line = {"VatGroup": vat_group, "LineTotal": 100.00}
+    if tax_pct is not None:
+        line["TaxPercentagePerRow"] = tax_pct
+    return {
+        "DocNum": 900,
+        "FederalTaxID": "P051123223G",
+        "CardName": "Welding Alloys Ltd",
+        "DocDate": "2026-03-02T00:00:00Z",
+        "U_CUINV": "CU_UNMAPPED",
+        "DocumentLines": [line],
+    }
+
+
+def test_unmapped_vat_code_warns_by_default():
+    """An unmapped code must log a warning explaining it cannot be resolved."""
+    with patch("app.services.sap_mapper.logger.warning") as mock_warn:
+        records = map_sap_document_to_canonical_rows(
+            _doc_with_vat("A16"), "Invoice", "Invoices", reconciliation_type="sales"
+        )
+    assert len(records) == 1
+    assert records[0].vat_group == "A16"
+    warned = " ".join(str(c) for c in mock_warn.call_args_list)
+    assert "A16" in warned and "VAT Mappings" in warned
+
+
+def test_mapped_vat_code_does_not_warn():
+    """A code that resolves through the mappings must not produce a warning."""
+    with patch("app.services.sap_mapper.logger.warning") as mock_warn:
+        records = map_sap_document_to_canonical_rows(
+            _doc_with_vat("O1"), "Invoice", "Invoices", reconciliation_type="sales"
+        )
+    assert records[0].vat_group == "16"
+    warned = " ".join(str(c) for c in mock_warn.call_args_list)
+    assert "VAT Mappings" not in warned
+
+
+@pytest.mark.parametrize("policy", [
+    "reject_invoice",
+    pytest.param(None, id="enum-member"),  # replaced below with the real enum
+])
+def test_unmapped_vat_code_rejects_under_reject_invoice_policy(policy):
+    """unmapped_vat_policy=reject_invoice must fail the load loudly.
+
+    Exercised with both the raw string and the actual enum member: str() on a
+    (str, Enum) member returns "UnmappedVatPolicy.REJECT_INVOICE", so a naive
+    string comparison would silently never trigger for real settings values.
+    """
+    from app.core.exceptions import SAPQueryError
+    from app.models.settings import UnmappedVatPolicy
+
+    if policy is None:
+        policy = UnmappedVatPolicy.REJECT_INVOICE
+
+    with pytest.raises(SAPQueryError, match="A16"):
+        map_sap_document_to_canonical_rows(
+            _doc_with_vat("A16"), "Invoice", "Invoices",
+            reconciliation_type="sales", unmapped_vat_policy=policy,
+        )
+
+
+def test_unmapped_vat_code_warns_under_needs_review_enum_policy():
+    """The default NEEDS_REVIEW enum must warn, not raise."""
+    from app.models.settings import UnmappedVatPolicy
+
+    with patch("app.services.sap_mapper.logger.warning") as mock_warn:
+        records = map_sap_document_to_canonical_rows(
+            _doc_with_vat("A16"), "Invoice", "Invoices",
+            reconciliation_type="sales",
+            unmapped_vat_policy=UnmappedVatPolicy.NEEDS_REVIEW,
+        )
+    assert records[0].vat_group == "A16"
+    assert "A16" in " ".join(str(c) for c in mock_warn.call_args_list)
+
+
+def test_zero_rate_with_unmapped_code_warns_before_collapsing_to_zero():
+    """Zero-rate lines with an unmapped code lose the exempt/zero distinction — warn."""
+    with patch("app.services.sap_mapper.logger.warning") as mock_warn:
+        records = map_sap_document_to_canonical_rows(
+            _doc_with_vat("ZZ9", tax_pct=0), "Invoice", "Invoices", reconciliation_type="sales"
+        )
+    assert records[0].vat_group == "0"
+    warned = " ".join(str(c) for c in mock_warn.call_args_list)
+    assert "ZZ9" in warned
+
+
+def test_configured_exempt_code_resolves_instead_of_collapsing():
+    """With the company's exempt code mapped, a zero-rate line stays EXEMPT."""
+    from app.services.vat_normalizer import VatNormalizer
+
+    normalizer = VatNormalizer(output_map={"ZX": "EXEMPT"})
+    records = map_sap_document_to_canonical_rows(
+        _doc_with_vat("ZX", tax_pct=0), "Invoice", "Invoices",
+        reconciliation_type="sales", vat_normalizer_override=normalizer,
+    )
+    assert records[0].vat_group == "EXEMPT"
+
+
+def test_base_amount_policy_accepts_enum_member():
+    """The per-company base_amount_policy enum must actually take effect.
+
+    Regression guard: str() on a (str, Enum) member returns "BaseAmountPolicy.SKIP",
+    so the comparison never matched and zero-amount lines were always kept.
+    """
+    from app.models.settings import BaseAmountPolicy
+
+    doc = {
+        "DocNum": 901,
+        "FederalTaxID": "P051123223G",
+        "CardName": "Welding Alloys Ltd",
+        "DocDate": "2026-03-02T00:00:00Z",
+        "U_CUINV": "CU_ZERO",
+        "DocumentLines": [
+            {"VatGroup": "O1", "LineTotal": 0.00},
+            {"VatGroup": "O1", "LineTotal": 100.00},
+        ],
+    }
+
+    rows = map_sap_document_to_canonical_rows(
+        doc, "Invoice", "Invoices", reconciliation_type="sales",
+        base_amount_policy=BaseAmountPolicy.SKIP,
+    )
+    # The zero line is skipped; only the 100.00 line survives
+    assert len(rows) == 1
+    assert rows[0].base_amount == Decimal("100.00")

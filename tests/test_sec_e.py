@@ -11,6 +11,8 @@ from app.services import kra_service
 from app.services.settings_service import SettingsService
 from app.services.parsing_profile_service import ParsingProfileService
 
+DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "client-request add section E"
+
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test_sec_e_db.db"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -46,7 +48,7 @@ def test_sec_e_parsing_profile_lookup(db_session):
 
 
 def test_parse_sec_e_without_pin_file(db_session):
-    file_path = Path("/home/amar-salim/Documents/Projects/kra-reconciliation-api/data/client-request add section E/SEC_E_WITHOUT_PIN_AND_NON-VAT_PIN1.CSV")
+    file_path = DATA_DIR / "SEC_E_WITHOUT_PIN_AND_NON-VAT_PIN1.CSV"
     assert file_path.exists(), f"Sample file not found at {file_path}"
 
     with open(file_path, "rb") as f:
@@ -66,7 +68,7 @@ def test_parse_sec_e_without_pin_file(db_session):
 
 
 def test_parse_sec_e_with_vat_pin_file(db_session):
-    file_path = Path("/home/amar-salim/Documents/Projects/kra-reconciliation-api/data/client-request add section E/SEC_E_WITH_VAT_PIN1.CSV")
+    file_path = DATA_DIR / "SEC_E_WITH_VAT_PIN1.CSV"
     assert file_path.exists(), f"Sample file not found at {file_path}"
 
     with open(file_path, "rb") as f:

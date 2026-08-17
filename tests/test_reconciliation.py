@@ -446,3 +446,83 @@ def test_decimal_normalization_and_order_independence():
     )
     summary, results = reconciliation_service.reconcile_invoices([sap1, sap2], [kra1, kra2])
     assert summary.matches == 2
+
+
+# --- Regression: VAT label formatting must not produce false mismatches ---
+
+def _vat_invoice(source: InvoiceSource, vat_group: str, cu_number: str, amount: str = "1000.00") -> Invoice:
+    """Builds a minimal invoice that differs only by VAT label, for canonicalization tests."""
+    return Invoice(
+        pin="P1", partner_name="Cust1", invoice_number="INV1",
+        invoice_date=date(2026, 3, 1), cu_number=cu_number, vat_group=vat_group,
+        base_amount=Decimal(amount), source=source
+    )
+
+
+@pytest.mark.parametrize("sap_vat,kra_vat", [
+    ("16", "16.00"),
+    ("16", "16%"),
+    ("16", "16.0"),
+    ("EXEMPT", "exempt"),
+    ("12.5", "12.50"),
+])
+def test_vat_format_variants_do_not_false_mismatch(sap_vat, kra_vat):
+    """Same economic rate written differently on each side must reconcile as a Match."""
+    cu = f"CU_{sap_vat}_{kra_vat}"
+    summary, results = reconciliation_service.reconcile_invoices(
+        [_vat_invoice(InvoiceSource.SAP, sap_vat, cu)],
+        [_vat_invoice(InvoiceSource.KRA, kra_vat, cu)],
+        amount_tolerance=Decimal("10.00"),
+    )
+    assert len(results) == 1
+    assert results[0].status == ReconciliationStatus.MATCH
+    assert results[0].vat_match is True
+
+
+def test_genuine_vat_difference_still_detected():
+    """Canonicalization must not mask a real rate difference."""
+    summary, results = reconciliation_service.reconcile_invoices(
+        [_vat_invoice(InvoiceSource.SAP, "16", "CU_REAL_DIFF")],
+        [_vat_invoice(InvoiceSource.KRA, "8", "CU_REAL_DIFF")],
+        amount_tolerance=Decimal("10.00"),
+    )
+    assert results[0].status == ReconciliationStatus.VAT_MISMATCH
+    assert results[0].vat_match is False
+
+
+def test_unknown_vat_code_passes_through_without_raising():
+    """An unmapped company-specific code must not fail the load (leniency guard)."""
+    summary, results = reconciliation_service.reconcile_invoices(
+        [_vat_invoice(InvoiceSource.SAP, "A16", "CU_UNKNOWN")],
+        [_vat_invoice(InvoiceSource.KRA, "A16", "CU_UNKNOWN")],
+        amount_tolerance=Decimal("10.00"),
+    )
+    assert results[0].status == ReconciliationStatus.MATCH
+
+
+def test_vat_bucket_properties_use_canonical_keys():
+    """A non-canonical label must still land in the correct tax bucket."""
+    normalized, missing = normalize_and_group_invoices(
+        [_vat_invoice(InvoiceSource.KRA, "16.00", "CU_BUCKET")]
+    )
+    assert len(normalized) == 1
+    assert normalized[0].base_16 == Decimal("1000.00")
+    assert normalized[0].is_mixed_tax is False
+
+
+def test_vat_breakdown_difference_is_human_readable():
+    """The VAT difference shown to users must never leak a Python repr."""
+    summary, results = reconciliation_service.reconcile_invoices(
+        [_vat_invoice(InvoiceSource.SAP, "0", "CU_MIXED", "2913.00")],
+        [
+            _vat_invoice(InvoiceSource.KRA, "0", "CU_MIXED", "2784.00"),
+            _vat_invoice(InvoiceSource.KRA, "EXEMPT", "CU_MIXED", "129.00"),
+        ],
+        amount_tolerance=Decimal("10.00"),
+    )
+    vat_diffs = [d for d in results[0].differences if d.field == DifferenceField.VAT_GROUP]
+    assert len(vat_diffs) == 1
+    rendered = vat_diffs[0].kra_value
+    assert "Decimal(" not in rendered
+    assert "{" not in rendered
+    assert rendered == "0: 2,784.00 | EXEMPT: 129.00"

@@ -16,6 +16,7 @@ from app.schemas.import_profile import (
     PreviewRowSample,
 )
 from app.schemas.invoice import CSVValidationErrorDetail, Invoice, InvoiceSource, ReconciliationType
+from app.utils.vat_utils import canonical_vat_key
 
 
 def normalize_header(header_str: str) -> str:
@@ -142,17 +143,7 @@ def normalize_vat_value(val: Any) -> str:
     """
     if val is None or pd.isna(val):
         return ""
-    str_val = str(val).strip().upper()
-    if not str_val:
-        return ""
-    cleaned = str_val.replace("%", "").strip()
-    try:
-        num = float(cleaned)
-        if num == int(num):
-            return str(int(num))
-        return str(num)
-    except ValueError:
-        return str_val
+    return canonical_vat_key(val)
 
 
 class ERPImportService:

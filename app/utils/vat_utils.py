@@ -53,3 +53,32 @@ def normalize_vat_rate(value: Any) -> str:
     if canonical_dec == canonical_dec.to_integral():
         return str(int(canonical_dec))
     return str(canonical_dec)
+
+
+def canonical_vat_key(value: Any) -> str:
+    """
+    Lenient canonicalization used to key reconciliation tax breakdowns.
+
+    Canonicalizes anything `normalize_vat_rate` understands ("16.00", "16%", "16.0"
+    and "exempt" all collapse onto "16"/"EXEMPT"), so the same economic rate produces
+    the same bucket key regardless of which ingest path produced it.
+
+    Unlike `normalize_vat_rate` this never raises: an unrecognized company-specific
+    code (e.g. "A16") is passed through uppercased rather than failing the load.
+    Blank input yields "".
+
+    NOTE: only ever pass a SINGLE rate here. `normalize_vat_rate` treats any string
+    containing "EXEMPT" as exempt, so a joined multi-bucket label like "0, EXEMPT"
+    would collapse to "EXEMPT" and lose the zero-rated portion.
+    """
+    if value is None:
+        return ""
+
+    str_val = str(value).strip()
+    if not str_val:
+        return ""
+
+    try:
+        return normalize_vat_rate(str_val)
+    except ValueError:
+        return str_val.upper()

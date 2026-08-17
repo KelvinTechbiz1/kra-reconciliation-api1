@@ -11,6 +11,7 @@ from app.schemas.invoice import (
 )
 from app.services import invoice_service, kra_service
 from app.services.settings_service import SettingsService
+from app.services.vat_normalizer import VatNormalizer
 
 SESSION_EXPIRY_MINUTES = 30
 
@@ -69,6 +70,15 @@ def load_sap_invoices(
     db.commit()
 
     system_setting = SettingsService.get_or_create_company_settings(db, company_id)
+
+    # Resolve this company's configured SAP VAT code mappings once per load, into a
+    # request-local normalizer. Without this the engine would only ever recognise the
+    # built-in default codes and every custom code would become its own tax bucket.
+    normalizer = VatNormalizer()
+    active_connection = SettingsService.get_active_connection(db, company_id)
+    if active_connection:
+        normalizer.load_from_db(db, active_connection.id)
+
     invoices = invoice_service.get_invoices(
         from_date,
         to_date,
@@ -78,6 +88,8 @@ def load_sap_invoices(
         sales_cu_source=system_setting.sales_cu_source,
         purchase_cu_source=system_setting.purchase_cu_source,
         base_amount_policy=system_setting.base_amount_policy,
+        vat_normalizer_override=normalizer,
+        unmapped_vat_policy=system_setting.unmapped_vat_policy,
     )
 
     _save_invoices(db, session.id, invoices, InvoiceSource.SAP)

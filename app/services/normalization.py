@@ -2,6 +2,8 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 import re
 
+from app.utils.vat_utils import canonical_vat_key
+
 LEGAL_SUFFIXES = {
     "LIMITED": "",
     "LTD": "",
@@ -105,10 +107,10 @@ def normalize_invoice_data(
     if vat_group is None or (isinstance(vat_group, str) and not vat_group.strip()):
         raise ValueError("VAT Group is required")
     
-    norm_vat = str(vat_group).strip()
-    # Normalize float-like groups (e.g. "16.0" -> "16")
-    if norm_vat.endswith(".0"):
-        norm_vat = norm_vat[:-2]
+    # Canonicalize so the same rate keys the same tax bucket regardless of the
+    # source format ("16", "16.0", "16.00", "16%" -> "16"). Unknown company-specific
+    # codes pass through uppercased rather than raising.
+    norm_vat = canonical_vat_key(vat_group)
     if not norm_vat:
         raise ValueError("VAT Group cannot be empty")
 

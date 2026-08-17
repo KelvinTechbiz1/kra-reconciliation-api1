@@ -1,6 +1,6 @@
 from collections import defaultdict
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from datetime import date
 from typing import Sequence, Dict, List, Set, Tuple, Optional
 import difflib
@@ -76,11 +76,29 @@ def validate_tax_breakdowns(
     return True
 
 
+def _vat_key_sort_order(key: str) -> tuple[int, Decimal | str]:
+    """Sorts numeric VAT rates ascending first, then non-numeric keys alphabetically."""
+    try:
+        return (0, Decimal(key))
+    except InvalidOperation:
+        return (1, key)
+
+
 def _format_vat_breakdown_str(breakdown: Dict[str, Decimal]) -> str:
-    """Formats VAT breakdown dictionary into readable string."""
+    """
+    Formats a VAT breakdown into a readable, deterministically ordered string.
+
+    A single bucket renders as the bare rate ("16"); multiple buckets render as
+    "0: 2,784.00 | EXEMPT: 129.00". This value is user-facing — it reaches the
+    results table and the exceptions workbook — so it must never expose a raw
+    Python repr.
+    """
     if len(breakdown) == 1:
         return list(breakdown.keys())[0]
-    return str(dict(breakdown))
+    return " | ".join(
+        f"{key}: {breakdown[key]:,.2f}"
+        for key in sorted(breakdown, key=_vat_key_sort_order)
+    )
 
 
 def reconcile_invoices(

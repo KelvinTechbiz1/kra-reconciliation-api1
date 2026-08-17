@@ -23,6 +23,8 @@ def _fetch_endpoint_invoices(
     cu_field: str,
     page_size: int,
     base_amount_policy: str | None = None,
+    vat_normalizer_override=None,
+    unmapped_vat_policy: str | None = None,
 ) -> tuple[list[Invoice], int, int, int, float]:
     start_time = time.perf_counter()
     endpoint_invoices = []
@@ -52,6 +54,8 @@ def _fetch_endpoint_invoices(
                     reconciliation_session_id=reconciliation_session_id,
                     purchase_cu_source=cu_field,
                     base_amount_policy=base_amount_policy,
+                    vat_normalizer_override=vat_normalizer_override,
+                    unmapped_vat_policy=unmapped_vat_policy,
                 )
                 for row in canonical_rows:
                     normalized = normalize_invoice_data(
@@ -99,6 +103,8 @@ def get_invoices(
     purchase_cu_source: str = "U_CUINV",
     page_size: int | None = None,
     base_amount_policy: str | None = None,
+    vat_normalizer_override=None,
+    unmapped_vat_policy: str | None = None,
 ) -> list[Invoice]:
     """
     Fetches Invoices and Credit Notes (Sales or Purchases) in parallel page-by-page from SAP Service Layer,
@@ -142,6 +148,8 @@ def get_invoices(
                 cu_field=cu_field,
                 page_size=page_size,
                 base_amount_policy=base_amount_policy,
+                vat_normalizer_override=vat_normalizer_override,
+                unmapped_vat_policy=unmapped_vat_policy,
             )
             for endpoint_name, source_doc_type in endpoints
         ]

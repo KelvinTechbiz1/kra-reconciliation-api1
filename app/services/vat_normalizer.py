@@ -4,7 +4,7 @@ from typing import Dict, Optional
 from sqlalchemy.orm import Session
 
 from app.models.settings import VATMapping, VatModule
-from app.utils.vat_utils import normalize_vat_rate
+from app.utils.vat_utils import canonical_vat_key
 
 
 class DocumentType(str, Enum):
@@ -36,15 +36,22 @@ class VatNormalizer:
         self._input = {k.upper(): v for k, v in (input_map or self._DEFAULT_INPUT_MAP).items()}
         self._output = {k.upper(): v for k, v in (output_map or self._DEFAULT_OUTPUT_MAP).items()}
 
-    def load_from_db(self, db: Session, connection_id: Optional[int] = None) -> None:
+    def load_from_db(self, db: Session, connection_id: int) -> None:
         """
-        Dynamically reload mapping tables from active DB vat_mappings.
-        """
-        query = db.query(VATMapping)
-        if connection_id:
-            query = query.filter(VATMapping.connection_id == connection_id)
+        Load this instance's mapping tables from the vat_mappings rows belonging to
+        one SAP connection.
 
-        mappings = query.all()
+        `connection_id` is REQUIRED: VATMapping.connection_id is scoped to a company's
+        SAP connection, so an unfiltered query would blend VAT codes across tenants.
+
+        Falls back to the built-in defaults for whichever module has no configured
+        rows, so a partially-configured company still resolves standard codes.
+        """
+        mappings = (
+            db.query(VATMapping)
+            .filter(VATMapping.connection_id == connection_id)
+            .all()
+        )
         if not mappings:
             return
 
@@ -68,16 +75,17 @@ class VatNormalizer:
         Normalize raw VAT strings, percentages, decimals, and exempt terms.
         Distinguishes Zero Rated ('0') from Exempt ('EXEMPT').
         """
-        code = val.strip().upper()
-        if not code:
-            return ""
+        return canonical_vat_key(val)
 
-        try:
-            return normalize_vat_rate(val)
-        except ValueError:
-            return code
+    def is_mapped(self, source: str, document_type: str, value: str) -> bool:
+        """Whether this code resolves through a configured/built-in mapping rather than falling back."""
+        if source.lower() != "sap":
+            return False
+        code = value.strip().upper()
+        mapping = self._input if document_type == "purchases" else self._output
+        return bool(code) and code in mapping
 
-    def normalize(self, source: str, document_type: str, value: str, db: Optional[Session] = None) -> str:
+    def normalize(self, source: str, document_type: str, value: str) -> str:
         """
         Normalize a VAT code string.
 
@@ -85,17 +93,16 @@ class VatNormalizer:
             source: ERP source identifier (e.g. "sap", "kra").
             document_type: "sales" or "purchases".
             value: Raw VAT code string (e.g. "I1", "O1", "16.0", "16%", "EXEMPT").
-            db: Optional database session to refresh DB mappings dynamically.
 
         Returns:
             Normalized VAT string (e.g. "16", "8", "0", "EXEMPT").
+
+        Mappings are loaded once per request via `load_from_db` on a request-local
+        instance; this method never mutates state.
         """
         code = value.strip().upper()
         if not code:
             return ""
-
-        if db is not None:
-            self.load_from_db(db)
 
         if source.lower() == "sap":
             mapping = self._input if document_type == "purchases" else self._output
@@ -105,5 +112,7 @@ class VatNormalizer:
         return self._normalize_raw_value(value)
 
 
-# Module-level singleton
+# Module-level singleton holding only the built-in defaults.
+# Used as the zero-config fallback. Never call load_from_db on it — per-company
+# mappings belong on a request-local instance (see api/v1/_session_helpers.py).
 vat_normalizer = VatNormalizer()

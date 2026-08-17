@@ -4,6 +4,8 @@ from enum import Enum
 from typing import Optional
 from pydantic import BaseModel, field_serializer
 
+from app.utils.vat_utils import canonical_vat_key
+
 
 class ReconciliationType(str, Enum):
     SALES = "sales"
@@ -42,7 +44,7 @@ class Invoice(BaseModel):
 
     @property
     def normalized_vat_group(self) -> str:
-        return self.vat_group.strip().upper() if self.vat_group else ""
+        return canonical_vat_key(self.vat_group)
 
 
 class InvoiceFetchResponse(BaseModel):
