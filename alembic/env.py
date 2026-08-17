@@ -9,7 +9,10 @@ config = context.config
 
 # Logging
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers defaults to True, which silences every logger already
+    # configured by the caller. app.init_db runs migrations before it seeds, so its own
+    # startup output (seeded credentials, KRA sections) vanished from container logs.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Discover models via the central import module
 import app.database.models  # noqa: F401

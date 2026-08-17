@@ -31,6 +31,11 @@ def init_db():
         import traceback
         logger.error(f"Migration error: {e}")
         traceback.print_exc()
+    finally:
+        # alembic.ini pins the root logger at WARNING, which this logger inherits.
+        # Without restoring it, everything below (seeded credentials, KRA sections)
+        # is dropped and the container log looks like nothing happened.
+        logger.setLevel(logging.INFO)
 
     # Seed default admin user and company if empty
     from app.database.database import SessionLocal
@@ -88,6 +93,29 @@ def init_db():
             logger.info(f"Database already initialized with {user_count} user(s).")
     except Exception as e:
         logger.error(f"Error seeding initial user data: {e}")
+    finally:
+        db.close()
+
+    # Reference data, refreshed on every start rather than only on a fresh database.
+    # The KRA section -> VAT rate table is required to import a section at all, so a
+    # release that adds one (e.g. SEC_D2 exports) must not depend on an operator
+    # happening to open the Settings page before the next upload. The seed is
+    # idempotent: it inserts only missing prefixes and leaves edited rows alone.
+    db = SessionLocal()
+    try:
+        from app.models.settings import KRAVATMapping
+        from app.services.settings_service import SettingsService
+
+        before = {m.section_prefix.strip().upper() for m in db.query(KRAVATMapping).all()}
+        SettingsService.seed_default_kra_section_profiles(db)
+        after = {m.section_prefix.strip().upper() for m in db.query(KRAVATMapping).all()}
+
+        added = sorted(after - before)
+        if added:
+            logger.info(f"Added KRA section VAT mappings: {', '.join(added)}")
+        logger.info(f"KRA section VAT mappings available: {', '.join(sorted(after))}")
+    except Exception as e:
+        logger.error(f"Error seeding KRA section VAT mappings: {e}")
     finally:
         db.close()
 
