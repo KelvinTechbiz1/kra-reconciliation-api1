@@ -97,27 +97,34 @@ export function useReconciliation(type: "sales" | "purchases") {
     setLoadingKra(true);
     setError(null);
     setSummary(null);
-    setFileStatuses([]);
-    kraPagination.reset();
     resultsPagination.reset();
 
     try {
       const data = await uploadInvoicesCSV(type, sessionId, files);
-      setFileStatuses(data.files);
+      // Uploads append server-side, so earlier passes keep their tags.
+      setFileStatuses(prev => [
+        ...prev.filter(p => !data.files.some(f => f.filename === p.filename)),
+        ...data.files,
+      ]);
       setCurrentView("preview");
-      
-      // Seed Page 1 of KRA preview directly
-      const totalParsed = data.files.reduce((sum, f) => sum + f.parsed, 0);
-      const totalPages = Math.ceil(totalParsed / 100);
-      kraPagination.reset(data.invoices, totalParsed, totalPages);
+
+      // Read page 1 back from the session: an append puts earlier sections first.
+      try {
+        const firstPage = await fetchKraPage(1, 100);
+        kraPagination.reset(firstPage.items, firstPage.total, firstPage.total_pages);
+      } catch {
+        const totalParsed = data.total_kra_records;
+        kraPagination.reset(data.invoices, totalParsed, Math.ceil(totalParsed / 100));
+      }
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message);
       } else {
         setError("An unknown error occurred");
       }
-      if (fileInputRef.current) fileInputRef.current.value = "";
     } finally {
+      // Always clear so re-selecting the same files fires onChange again.
+      if (fileInputRef.current) fileInputRef.current.value = "";
       setLoadingKra(false);
     }
   };

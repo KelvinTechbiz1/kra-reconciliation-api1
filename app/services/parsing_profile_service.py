@@ -12,6 +12,13 @@ DEFAULT_PARSING_PROFILES: Dict[str, KRAParsingProfileItem] = {
         pin_column=0, partner_name_column=1, invoice_number_column=2,
         invoice_date_column=3, cu_number_column=4, base_amount_column=6
     ),
+    # D2 (Exports) verified against a real export, 2026-08-17. Exports carry no local
+    # PIN and often no customer name — both columns are legitimately blank — and the
+    # amount sits at index 11, well right of the other sales sections.
+    "SEC_D2": KRAParsingProfileItem(
+        pin_column=0, partner_name_column=1, invoice_number_column=2,
+        invoice_date_column=3, cu_number_column=4, base_amount_column=11
+    ),
     "SEC_E": KRAParsingProfileItem(
         pin_column=0, partner_name_column=1, invoice_number_column=2,
         invoice_date_column=3, cu_number_column=4, base_amount_column=6

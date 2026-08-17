@@ -156,22 +156,34 @@ export function useWorkspace(type: "sales" | "purchases") {
     }));
     setGlobalError(null);
     setSummary(null);
-    setFileStatuses([]);
-    kraPagination.reset();
     resultsPagination.reset();
 
     try {
       const data = await uploadInvoicesCSV(type, sessionId, files);
-      setFileStatuses(data.files);
-      
-      const totalParsed = data.files.reduce((sum, f) => sum + f.parsed, 0);
-      const totalPages = Math.ceil(totalParsed / 100);
-      kraPagination.reset(data.invoices, totalParsed, totalPages);
-      
+      // Uploads append server-side, so keep the tags from earlier passes. Re-uploading
+      // a file replaces its own tag rather than showing it twice.
+      setFileStatuses(prev => [
+        ...prev.filter(p => !data.files.some(f => f.filename === p.filename)),
+        ...data.files,
+      ]);
+
+      // Re-read page 1 from the session rather than seeding it with just-uploaded rows:
+      // an append leaves earlier sections ahead of these in the preview.
+      try {
+        const firstPage = await fetchKraPage(1, 100);
+        kraPagination.reset(firstPage.items, firstPage.total, firstPage.total_pages);
+      } catch {
+        const totalParsed = data.total_kra_records;
+        kraPagination.reset(data.invoices, totalParsed, Math.ceil(totalParsed / 100));
+      }
+
       setUiState(prev => ({ ...prev, kra: { status: AsyncStatus.Loaded } }));
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "An unknown error occurred uploading CSV.";
       setUiState(prev => ({ ...prev, kra: { status: AsyncStatus.Error, error: errorMessage } }));
+    } finally {
+      // Always clear, so selecting the same files again re-fires onChange. Previously
+      // this only ran on failure and a repeat selection did nothing at all.
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };

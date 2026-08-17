@@ -84,6 +84,11 @@ class MultipleInvoiceUploadResponse(BaseModel):
     session_id: str = ""
     files: list[FileUploadStatus]
     invoices: list[Invoice]
+    # KRA uploads append to the session, so the caller needs the running total as well
+    # as what this request contributed.
+    added: int = 0
+    duplicates_skipped: int = 0
+    total_kra_records: int = 0
 
 
 class PaginatedInvoicesResponse(BaseModel):

@@ -341,17 +341,36 @@ export function WorkspaceView({
             {/* File tags */}
             {fileStatuses.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-1">
-                {fileStatuses.map((f, idx) => (
-                  <div
-                    key={idx}
-                    className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-full px-2.5 py-1 text-[11px] font-medium text-slate-700 max-w-[200px]"
-                    title={f.filename}
-                  >
-                    <CheckCircle2 className="w-3 h-3 text-slate-400 shrink-0" />
-                    <span className="truncate">{f.filename}</span>
-                    <span className="text-slate-500 font-bold shrink-0">·{f.parsed}</span>
-                  </div>
-                ))}
+                {fileStatuses.map((f, idx) => {
+                  // A file that imported nothing, or that had row errors, must never
+                  // wear a green tick — that is how whole sections went missing unnoticed.
+                  const failed = f.parsed === 0;
+                  const partial = !failed && f.errors_count > 0;
+                  return (
+                    <div
+                      key={idx}
+                      className={`inline-flex items-center gap-1.5 border rounded-full px-2.5 py-1 text-[11px] font-medium max-w-[240px] ${failed
+                        ? "bg-red-50 border-red-200 text-red-700"
+                        : partial
+                          ? "bg-amber-50 border-amber-200 text-amber-800"
+                          : "bg-slate-50 border-slate-200 text-slate-700"
+                        }`}
+                      title={
+                        failed || partial
+                          ? `${f.filename} — ${f.parsed} of ${f.rows} rows imported. ${f.errors[0]?.message ?? ""}`
+                          : f.filename
+                      }
+                    >
+                      {failed || partial
+                        ? <AlertTriangle className={`w-3 h-3 shrink-0 ${failed ? "text-red-500" : "text-amber-500"}`} />
+                        : <CheckCircle2 className="w-3 h-3 text-slate-400 shrink-0" />}
+                      <span className="truncate">{f.filename}</span>
+                      <span className="font-bold shrink-0">
+                        {failed ? "not imported" : partial ? `·${f.parsed}/${f.rows}` : `·${f.parsed}`}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

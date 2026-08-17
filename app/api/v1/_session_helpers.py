@@ -1,6 +1,7 @@
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.reconciliation_session import ReconciliationSession, SessionInvoice
@@ -16,11 +17,34 @@ from app.services.vat_normalizer import VatNormalizer
 SESSION_EXPIRY_MINUTES = 30
 
 
-def _save_invoices(db: Session, session_id: str, invoices: list[Invoice], source: InvoiceSource) -> None:
+def _next_row_number(db: Session, session_id: str, source: InvoiceSource) -> int:
+    """First free row_number for (session, source).
+
+    session_invoices carries UniqueConstraint(session_id, source, row_number), so an
+    append must continue the sequence rather than restart at 1.
+    """
+    highest = (
+        db.query(func.max(SessionInvoice.row_number))
+        .filter(
+            SessionInvoice.session_id == session_id,
+            SessionInvoice.source == source,
+        )
+        .scalar()
+    )
+    return (highest or 0) + 1
+
+
+def _save_invoices(
+    db: Session,
+    session_id: str,
+    invoices: list[Invoice],
+    source: InvoiceSource,
+    row_number_offset: int = 1,
+) -> None:
     db_invoices = [
         SessionInvoice(
             session_id=session_id,
-            row_number=idx + 1,
+            row_number=row_number_offset + idx,
             source=inv.source,
             pin=inv.pin,
             partner_name=inv.partner_name,
@@ -124,19 +148,61 @@ def upload_kra_csvs(
     company_id = session.company_id or current_user.company_id
     all_invoices, file_statuses = kra_service.parse_multiple_kra_csvs(files, db, company_id=company_id)
 
-    if all_invoices:
-        db.query(SessionInvoice).filter(
+    # Partial success is reported per file and still imports. But when nothing at all
+    # could be read there is no "rest" to keep, so fail loudly rather than return an
+    # empty 200 the UI would render as a successful upload.
+    if not all_invoices and any(f.errors_count for f in file_statuses):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="; ".join(
+                f"{f.filename}: {f.errors[0].message}"
+                for f in file_statuses if f.errors
+            ),
+        )
+
+    # Append to whatever the session already holds. KRA publishes one export per rate
+    # section, so users upload in several passes ("Upload More CSVs"); this used to
+    # delete every previously uploaded KRA row, silently discarding earlier sections.
+    existing_keys = {
+        (inv.pin, inv.invoice_number, inv.invoice_date, inv.cu_number, inv.vat_group, inv.base_amount)
+        for inv in db.query(SessionInvoice).filter(
             SessionInvoice.session_id == session.id,
             SessionInvoice.source == InvoiceSource.KRA,
-        ).delete()
+        )
+    }
+
+    # Re-uploading a file already in the session must not double-count it. Identical
+    # rows are skipped; genuinely repeated invoices differing in any field still load.
+    new_invoices = []
+    duplicates = 0
+    for inv in all_invoices:
+        key = (inv.pin, inv.invoice_number, inv.invoice_date, inv.cu_number, inv.vat_group, inv.base_amount)
+        if key in existing_keys:
+            duplicates += 1
+            continue
+        existing_keys.add(key)
+        new_invoices.append(inv)
+
+    if new_invoices:
         session.is_compared = False
         session.comparison_results = None
-        _save_invoices(db, session.id, all_invoices, InvoiceSource.KRA)
+        _save_invoices(
+            db, session.id, new_invoices, InvoiceSource.KRA,
+            row_number_offset=_next_row_number(db, session.id, InvoiceSource.KRA),
+        )
+
+    total_kra = db.query(SessionInvoice).filter(
+        SessionInvoice.session_id == session.id,
+        SessionInvoice.source == InvoiceSource.KRA,
+    ).count()
 
     return {
         "session_id": session.id,
         "files": file_statuses,
-        "invoices": all_invoices[:100],
+        "added": len(new_invoices),
+        "duplicates_skipped": duplicates,
+        "total_kra_records": total_kra,
+        "invoices": new_invoices[:100],
     }
 
 

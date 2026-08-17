@@ -48,17 +48,37 @@ DEFAULT_BUILTIN_VAT_MAPPINGS = [
 ]
 
 
-DEFAULT_KRA_PARSING_PROFILES = {
-    "schema_version": 1,
-    "profiles": {
-        "SEC_B": {"pin_column": 0, "partner_name_column": 1, "invoice_number_column": 2, "invoice_date_column": 3, "cu_number_column": 4, "base_amount_column": 6},
-        "SEC_E": {"pin_column": 0, "partner_name_column": 1, "invoice_number_column": 2, "invoice_date_column": 3, "cu_number_column": 4, "base_amount_column": 6},
-        "SEC_F": {"pin_column": 1, "partner_name_column": 2, "invoice_number_column": None, "invoice_date_column": 3, "cu_number_column": 4, "base_amount_column": 7},
-        "SEC_G": {"pin_column": 1, "partner_name_column": 2, "invoice_number_column": None, "invoice_date_column": 3, "cu_number_column": 4, "base_amount_column": 7},
-        "SEC_H": {"pin_column": 1, "partner_name_column": 2, "invoice_number_column": None, "invoice_date_column": 3, "cu_number_column": 4, "base_amount_column": 8},
-        "SEC_I": {"pin_column": 1, "partner_name_column": 2, "invoice_number_column": None, "invoice_date_column": 3, "cu_number_column": 4, "base_amount_column": 7},
-    },
-}
+def _default_kra_parsing_profiles() -> dict:
+    """The parsing profiles the importer actually uses, in stored-JSON shape.
+
+    Derived from the importer's own table rather than duplicated: a second hand-written
+    copy silently drifts, and a section present in one copy but not the other is invisible
+    in Settings even though imports work (or vice versa).
+    """
+    from app.services.parsing_profile_service import DEFAULT_PARSING_PROFILES
+
+    return {
+        "schema_version": 1,
+        "profiles": {k: v.model_dump() for k, v in DEFAULT_PARSING_PROFILES.items()},
+    }
+
+
+def _with_default_profiles(stored: dict | None) -> dict:
+    """Stored profiles layered over the defaults.
+
+    Stored JSON holds operator customizations, so it can predate sections added since it
+    was written. get_required_profile already falls back to the defaults when importing;
+    this keeps Settings showing the same set instead of hiding a section that works.
+    """
+    defaults = _default_kra_parsing_profiles()
+    if not stored or not stored.get("profiles"):
+        return defaults
+    merged = dict(defaults["profiles"])
+    merged.update(stored["profiles"])
+    return {
+        "schema_version": stored.get("schema_version", 1),
+        "profiles": merged,
+    }
 
 
 class SettingsConflictError(Exception):
@@ -90,7 +110,7 @@ class SettingsService:
                 sales_cu_source="U_CUINV",
                 purchase_cu_source="U_CUINV",
                 version=1,
-                kra_parsing_profiles=DEFAULT_KRA_PARSING_PROFILES,
+                kra_parsing_profiles=_default_kra_parsing_profiles(),
             )
             db.add(setting)
             db.commit()
@@ -150,6 +170,7 @@ class SettingsService:
     def seed_default_kra_section_profiles(cls, db: Session):
         defaults = [
             {"section_prefix": "SEC_B", "canonical_rate": "16", "description": "B – General Rated Supplies (Sales) 16%"},
+            {"section_prefix": "SEC_D2", "canonical_rate": "0", "description": "D2 – Export Sales (Zero-Rated) 0%"},
             {"section_prefix": "SEC_E", "canonical_rate": "EXEMPT", "description": "E – Exempt Sales (eTIMS/TIMS) Exempt"},
             {"section_prefix": "SEC_F", "canonical_rate": "16", "description": "F – General Rated Purchases (local) 16%"},
             {"section_prefix": "SEC_G", "canonical_rate": "8", "description": "G – Other Rated Purchases 8% (Petroleum)"},
@@ -212,7 +233,7 @@ class SettingsService:
             skip_cancelled=setting.skip_cancelled,
             sales_cu_source=setting.sales_cu_source or "U_CUINV",
             purchase_cu_source=setting.purchase_cu_source or "U_CUINV",
-            kra_parsing_profiles=setting.kra_parsing_profiles or DEFAULT_KRA_PARSING_PROFILES,
+            kra_parsing_profiles=_with_default_profiles(setting.kra_parsing_profiles),
             version=setting.version,
             updated_at=setting.updated_at,
             warning=warning,
@@ -377,7 +398,7 @@ class SettingsService:
             skip_cancelled=setting.skip_cancelled,
             sales_cu_source=setting.sales_cu_source or "U_CUINV",
             purchase_cu_source=setting.purchase_cu_source or "U_CUINV",
-            kra_parsing_profiles=setting.kra_parsing_profiles or DEFAULT_KRA_PARSING_PROFILES,
+            kra_parsing_profiles=_with_default_profiles(setting.kra_parsing_profiles),
             version=setting.version,
             updated_at=setting.updated_at,
             warning=warning,

@@ -1,5 +1,7 @@
 import csv
 import io
+import logging
+import re
 from fastapi import UploadFile, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.config import get_settings
@@ -14,13 +16,48 @@ from app.schemas.invoice import (
 from app.services.normalization import normalize_invoice_data
 from app.services.settings_service import SettingsService
 
+logger = logging.getLogger(__name__)
+
+HEADER_KEYWORDS = (
+    "pin", "invoice", "date", "vat", "amount",
+    "customer", "partner", "supplier", "cu",
+)
+
 
 def _cell_lower(cell: str) -> str:
     return (cell or "").strip().lower()
 
 
 def _kw_in_cell(keyword: str, cell: str) -> bool:
-    return keyword in _cell_lower(cell)
+    """Whether `cell` reads as a column heading for `keyword`.
+
+    A bare substring test is not safe here. KRA CU numbers look like
+    "|KRACU0300000313/207924", which contains "cu"; PINs and partner names hit
+    other keywords just as easily. Matching that way silently deleted the first
+    invoice of any export whose first row happened to contain one.
+
+    So a cell only counts as a heading when it carries no digits (headings are
+    words, values are not) and the keyword appears as a whole word.
+    """
+    text = _cell_lower(cell)
+    if not text or any(ch.isdigit() for ch in text):
+        return False
+    return keyword in re.findall(r"[a-z]+", text)
+
+
+def _looks_like_header_row(row: list[str]) -> bool:
+    """KRA exports are normally headerless; only skip row 0 on strong evidence.
+
+    Requires at least two heading-like cells, so a lone unlucky data cell can no
+    longer cost an invoice. Under-detecting is the safe failure: a genuine header
+    row that slips through fails normalization and is reported as a row error,
+    whereas over-detecting destroys real money silently.
+    """
+    matches = sum(
+        1 for cell in (row or [])
+        if any(_kw_in_cell(kw, cell) for kw in HEADER_KEYWORDS)
+    )
+    return matches >= 2
 
 
 def parse_kra_csv(file: UploadFile, db: Session, company_id: int | None = None) -> InvoiceUploadResponse:
@@ -81,10 +118,9 @@ def parse_kra_csv(file: UploadFile, db: Session, company_id: int | None = None) 
             detail="CSV file contains no data."
         )
 
-    # KRA exports are typically headerless. Tolerate an optional header row when the
-    # first row's cells match known header keywords (deterministic, bounded check).
-    HEADER_KEYWORDS = ("pin", "invoice", "date", "vat", "amount", "customer", "partner", "supplier", "cu")
-    if any(_kw_in_cell(kw, cell) for cell in (rows[0] or []) for kw in HEADER_KEYWORDS):
+    # KRA exports are typically headerless. Tolerate an optional header row, but only
+    # on strong evidence — see _looks_like_header_row.
+    if _looks_like_header_row(rows[0]):
         data_rows = rows[1:]
     else:
         data_rows = rows
@@ -230,11 +266,32 @@ def parse_kra_csv(file: UploadFile, db: Session, company_id: int | None = None) 
 def parse_multiple_kra_csvs(
     files: list[UploadFile], db: Session, company_id: int | None = None
 ) -> tuple[list[Invoice], list[FileUploadStatus]]:
-    """Parse multiple KRA CSV uploads, returning the combined invoices and per-file status."""
+    """Parse multiple KRA CSV uploads, returning the combined invoices and per-file status.
+
+    A file that cannot be parsed at all (unknown section, empty, wrong encoding, bad
+    filename) is isolated: it is reported as a failed entry in the returned statuses and
+    the remaining files still import. Previously any one such file raised and discarded
+    the whole batch, so a single stray download blocked the entire month's import.
+    """
     all_invoices: list[Invoice] = []
     file_statuses: list[FileUploadStatus] = []
     for file in files:
-        upload_res = parse_kra_csv(file, db, company_id=company_id)
+        filename = file.filename or "unknown.csv"
+        try:
+            upload_res = parse_kra_csv(file, db, company_id=company_id)
+        except HTTPException as exc:
+            logger.warning("KRA upload: skipping '%s' - %s", filename, exc.detail)
+            file_statuses.append(
+                FileUploadStatus(
+                    filename=filename,
+                    rows=0,
+                    parsed=0,
+                    errors_count=1,
+                    errors=[CSVValidationErrorDetail(row=0, column=None, message=str(exc.detail))],
+                )
+            )
+            continue
+
         all_invoices.extend(upload_res.invoices)
         file_statuses.append(
             FileUploadStatus(

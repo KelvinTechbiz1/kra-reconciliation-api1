@@ -32,6 +32,12 @@ export interface MultipleInvoiceUploadResponse {
   session_id: string;
   files: FileUploadStatus[];
   invoices: Invoice[];
+  /** Rows this request added. KRA uploads append to the session. */
+  added: number;
+  /** Rows already present in the session and therefore not re-imported. */
+  duplicates_skipped: number;
+  /** Running total of KRA rows in the session across all uploads. */
+  total_kra_records: number;
 }
 
 export interface ReconciliationResponse {
