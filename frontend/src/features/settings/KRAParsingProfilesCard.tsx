@@ -38,8 +38,13 @@ const KRA_FIELDS = [
   { key: "base_amount_column", label: "Base Amount Column Index" },
 ] as const;
 
+// Keep in sync with DEFAULT_PARSING_PROFILES in app/services/parsing_profile_service.py.
+// The backend is the authority: it falls back to its own defaults for any section the
+// company has not overridden, so a section missing here is still importable — it just
+// renders as an unrecognised "custom" section in this card.
 const SECTION_DEFAULTS: Record<string, KRAParsingProfileItem> = {
   SEC_B: { pin_column: 0, partner_name_column: 1, invoice_number_column: 2, invoice_date_column: 3, cu_number_column: 4, base_amount_column: 6 },
+  SEC_D2: { pin_column: 0, partner_name_column: 1, invoice_number_column: 2, invoice_date_column: 3, cu_number_column: 4, base_amount_column: 11 },
   SEC_E: { pin_column: 0, partner_name_column: 1, invoice_number_column: 2, invoice_date_column: 3, cu_number_column: 4, base_amount_column: 6 },
   SEC_F: { pin_column: 1, partner_name_column: 2, invoice_number_column: null, invoice_date_column: 3, cu_number_column: 4, base_amount_column: 7 },
   SEC_G: { pin_column: 1, partner_name_column: 2, invoice_number_column: null, invoice_date_column: 3, cu_number_column: 4, base_amount_column: 7 },
@@ -48,6 +53,19 @@ const SECTION_DEFAULTS: Record<string, KRAParsingProfileItem> = {
 };
 
 const KRA_DEFAULT_COLUMNS: KRAParsingProfileItem = SECTION_DEFAULTS.SEC_B;
+
+/** Fields of a stored profile whose column index differs from the built-in default. */
+function overriddenFields(section: string, stored: KRAParsingProfileItem | undefined) {
+  const defaults = SECTION_DEFAULTS[section];
+  if (!defaults || !stored) return [];
+  return KRA_FIELDS.filter((f) => (stored[f.key] ?? null) !== (defaults[f.key] ?? null));
+}
+
+/** e.g. "Invoice Date Column Index: 4 (default 3)" */
+function describeOverride(f: (typeof KRA_FIELDS)[number], stored: KRAParsingProfileItem, section: string) {
+  const shown = (v: number | null | undefined) => (v === null || v === undefined ? "none" : String(v));
+  return `${f.label}: ${shown(stored[f.key])} (default ${shown(SECTION_DEFAULTS[section][f.key])})`;
+}
 
 export function KRAParsingProfilesCard({ settings, selectedCompanyId, onSaved }: KRAParsingProfilesCardProps) {
   const [kraParsingProfiles, setKraParsingProfiles] = useState<KRAParsingProfilesConfig>(
@@ -186,6 +204,18 @@ export function KRAParsingProfilesCard({ settings, selectedCompanyId, onSaved }:
     return validateKRAParsingProfileSection(activeProfileData as unknown as Record<string, number | null>);
   }, [activeProfileData]);
 
+  // Compared against the stored profile, not `activeProfileData` — the latter falls back
+  // to the defaults, which would make every untouched section look unmodified either way,
+  // but would also hide a stored profile that merely restates the defaults.
+  const activeOverrides = useMemo(
+    () => overriddenFields(activeProfileTab, kraParsingProfiles.profiles?.[activeProfileTab]),
+    [activeProfileTab, kraParsingProfiles.profiles]
+  );
+  const activeOverrideKeys = useMemo(
+    () => new Set(activeOverrides.map((f) => f.key)),
+    [activeOverrides]
+  );
+
   const sectionValidationStatus = useMemo(() => {
     const statusMap: Record<string, { valid: boolean; errorCount: number }> = {};
     for (const sec of availableSections) {
@@ -298,6 +328,11 @@ export function KRAParsingProfilesCard({ settings, selectedCompanyId, onSaved }:
                 const status = sectionValidationStatus[sec];
                 const isInvalid = status && !status.valid;
                 const isCustom = !SECTION_DEFAULTS[sec];
+                const stored = kraParsingProfiles.profiles?.[sec];
+                // A section can carry a built-in default and still be edited away from it.
+                // Flagging only `isCustom` hid exactly that case: a section silently
+                // overridden with the wrong indexes looked identical to an untouched one.
+                const overrides = isCustom ? [] : overriddenFields(sec, stored);
 
                 return (
                   <button
@@ -314,6 +349,17 @@ export function KRAParsingProfilesCard({ settings, selectedCompanyId, onSaved }:
                     {isCustom && (
                       <span className="text-[9px] font-mono px-1 bg-slate-200 text-slate-600 rounded">
                         custom
+                      </span>
+                    )}
+                    {overrides.length > 0 && (
+                      <span
+                        className="text-[9px] font-mono px-1 bg-amber-100 text-amber-700 rounded"
+                        title={
+                          `${overrides.length} column${overrides.length === 1 ? "" : "s"} overridden:\n` +
+                          overrides.map((f) => describeOverride(f, stored!, sec)).join("\n")
+                        }
+                      >
+                        edited
                       </span>
                     )}
                     {isInvalid ? (
@@ -336,6 +382,11 @@ export function KRAParsingProfilesCard({ settings, selectedCompanyId, onSaved }:
               {!SECTION_DEFAULTS[activeProfileTab] && (
                 <span className="text-[10px] bg-slate-200 text-slate-700 font-mono px-1.5 py-0.5 rounded font-medium">
                   Custom Section Profile
+                </span>
+              )}
+              {activeOverrides.length > 0 && (
+                <span className="text-[10px] bg-amber-100 text-amber-700 font-mono px-1.5 py-0.5 rounded font-medium">
+                  {activeOverrides.length} column{activeOverrides.length === 1 ? "" : "s"} overridden
                 </span>
               )}
             </div>
@@ -397,6 +448,13 @@ export function KRAParsingProfilesCard({ settings, selectedCompanyId, onSaved }:
                       <p className="text-[11px] font-medium text-red-600 mt-0.5 flex items-center gap-1">
                         <AlertTriangle className="w-3 h-3 shrink-0 text-red-500" />
                         {fieldError}
+                      </p>
+                    )}
+
+                    {!fieldError && activeOverrideKeys.has(f.key) && (
+                      <p className="text-[11px] font-mono text-amber-700 mt-0.5">
+                        overrides default{" "}
+                        {SECTION_DEFAULTS[activeProfileTab]?.[f.key] ?? "none"}
                       </p>
                     )}
                   </div>
