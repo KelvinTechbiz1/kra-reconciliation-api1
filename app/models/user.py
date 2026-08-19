@@ -33,6 +33,15 @@ class User(Base):
 
     company: Mapped["Company | None"] = relationship("Company")
 
+    @property
+    def company_name(self) -> str | None:
+        """Name of the company this user belongs to, for display alongside the username.
+
+        Read by UserResponse via from_attributes. SaaS admins have no company_id, so this
+        is None for them.
+        """
+        return self.company.name if self.company else None
+
 
 # Late import to register model in SQLAlchemy registry without circular dependency
 from app.models.refresh_token import RefreshToken  # noqa: F401

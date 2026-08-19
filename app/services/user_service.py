@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.security import hash_password, verify_password
 from app.models.user import User
@@ -80,7 +80,9 @@ def get_by_id(db: Session, user_id: int) -> User | None:
 
 
 def list_users(db: Session, company_id: int | None = None) -> list[User]:
-    query = db.query(User)
+    # Eager-load the company: UserResponse exposes company_name, which would otherwise
+    # emit one query per user.
+    query = db.query(User).options(selectinload(User.company))
     if company_id is not None:
         query = query.filter(User.company_id == company_id)
     return query.order_by(User.created_at.asc()).all()

@@ -67,6 +67,9 @@ export function Header() {
     return pathname.startsWith(route);
   };
 
+  // SaaS admins belong to no company, so there is nothing to name for them.
+  const companyName = currentUser?.role === "admin" ? null : currentUser?.company_name?.trim() || null;
+
   const initials = currentUser
     ? (currentUser.full_name || currentUser.username)
       .trim()
@@ -143,12 +146,17 @@ export function Header() {
             </div>
 
             {currentUser && (
-              <div suppressHydrationWarning className="hidden md:flex flex-col text-left">
-                <span className="text-xs font-semibold text-slate-800 leading-tight">
+              <div suppressHydrationWarning className="hidden md:flex flex-col text-left max-w-[14rem]">
+                <span className="text-xs font-semibold text-slate-800 leading-tight truncate">
                   {currentUser.full_name || currentUser.username}
                 </span>
-                <span className="text-[10px] text-slate-500 capitalize leading-tight font-medium">
-                  {currentUser.role}
+                <span
+                  className="text-[10px] text-slate-500 leading-tight font-medium truncate"
+                  title={companyName ? `${companyName} · ${currentUser.role}` : undefined}
+                >
+                  {companyName && <span className="text-slate-600">{companyName}</span>}
+                  {companyName && " · "}
+                  <span className="capitalize">{currentUser.role}</span>
                 </span>
               </div>
             )}
@@ -173,6 +181,11 @@ export function Header() {
                       <p className="text-[11px] text-slate-500 truncate font-mono">
                         @{currentUser.username} {currentUser.email ? `· ${currentUser.email}` : ""}
                       </p>
+                      {companyName && (
+                        <p className="mt-1 text-[11px] font-semibold text-slate-700 truncate" title={companyName}>
+                          {companyName}
+                        </p>
+                      )}
                       <div className="mt-1 flex items-center gap-1.5">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${currentUser.role === "admin"
                           ? "bg-violet-100 text-violet-800"

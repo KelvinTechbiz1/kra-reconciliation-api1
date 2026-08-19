@@ -89,6 +89,7 @@ class UserResponse(BaseModel):
     full_name: str | None = None
     role: str
     company_id: int | None = None
+    company_name: str | None = None
     is_active: bool
     last_login_at: datetime | None = None
     created_at: datetime

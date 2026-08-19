@@ -7,6 +7,8 @@ export interface UserRecord {
   full_name: string | null;
   role: UserRole;
   company_id?: number | null;
+  /** Name of the user's company. Null for SaaS admins, who belong to none. */
+  company_name?: string | null;
   is_active: boolean;
   last_login_at: string | null;
   created_at: string;
