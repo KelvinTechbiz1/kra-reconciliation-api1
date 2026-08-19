@@ -8,8 +8,71 @@ from app.core.config import get_settings
 logger = logging.getLogger(__name__)
 
 
+SENDGRID_API_URL = "https://api.sendgrid.com/v3/mail/send"
+
+# MAIL_MAILER values that route over SendGrid's HTTPS API instead of SMTP.
+_API_MAILERS = {"sendgrid_api", "sendgrid-api", "api", "https"}
+
+
+def _send_via_sendgrid_api(
+    to_email: str,
+    subject: str,
+    body_html: str,
+    body_text: str | None,
+    api_key: str,
+    from_addr: str,
+    from_name: str,
+) -> bool:
+    """Hand the message to SendGrid over HTTPS instead of SMTP.
+
+    Hosting providers commonly block outbound SMTP (25/465/587) and only lift it on
+    request — DigitalOcean does this by default — which surfaces as a connect timeout
+    to smtp.sendgrid.net. Port 443 is open wherever the app can already reach the
+    internet, so this path works without waiting on the provider.
+
+    The credential is the same one SMTP uses: SendGrid's SMTP username is the literal
+    "apikey" and its password is the API key, so MAIL_PASSWORD carries it either way.
+    """
+    import httpx
+
+    # SendGrid renders the last matching part, and requires text/plain before text/html.
+    content = []
+    if body_text:
+        content.append({"type": "text/plain", "value": body_text})
+    content.append({"type": "text/html", "value": body_html})
+
+    payload = {
+        "personalizations": [{"to": [{"email": to_email}]}],
+        "from": {"email": from_addr, "name": from_name} if from_name else {"email": from_addr},
+        "subject": subject,
+        "content": content,
+    }
+
+    try:
+        response = httpx.post(
+            SENDGRID_API_URL,
+            json=payload,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=20,
+        )
+    except Exception as exc:
+        logger.error(f"Failed to send email to {to_email} via SendGrid API: {exc}")
+        return False
+
+    # 202 Accepted is SendGrid's success response; it has no body.
+    if response.status_code == 202:
+        logger.info(f"Successfully sent email to {to_email} via SendGrid API")
+        return True
+
+    logger.error(
+        f"Failed to send email to {to_email} via SendGrid API: "
+        f"HTTP {response.status_code} {response.text[:500]}"
+    )
+    return False
+
+
 def send_email(to_email: str, subject: str, body_html: str, body_text: str | None = None) -> bool:
-    """Send an email using SMTP (configured for SendGrid SMTP)."""
+    """Send an email over SMTP, or SendGrid's HTTPS API when MAIL_MAILER selects it."""
     settings = get_settings()
 
     mail_host = settings.mail_host
@@ -19,6 +82,18 @@ def send_email(to_email: str, subject: str, body_html: str, body_text: str | Non
     from_addr = settings.mail_from_address
     from_name = settings.mail_from_name
 
+    if not mail_pass:
+        logger.warning(
+            f"[MOCK EMAIL] MAIL_PASSWORD not configured. Skipping send to {to_email}. "
+            f"Subject: {subject}"
+        )
+        return True
+
+    if settings.mail_mailer.strip().lower() in _API_MAILERS:
+        return _send_via_sendgrid_api(
+            to_email, subject, body_html, body_text, mail_pass, from_addr, from_name
+        )
+
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = f"{from_name} <{from_addr}>" if from_name else from_addr
@@ -27,13 +102,6 @@ def send_email(to_email: str, subject: str, body_html: str, body_text: str | Non
     if body_text:
         msg.attach(MIMEText(body_text, "plain", "utf-8"))
     msg.attach(MIMEText(body_html, "html", "utf-8"))
-
-    if not mail_pass:
-        logger.warning(
-            f"[MOCK EMAIL] MAIL_PASSWORD not configured. Skipping SMTP send to {to_email}. "
-            f"Subject: {subject}"
-        )
-        return True
 
     try:
         with smtplib.SMTP(mail_host, mail_port, timeout=15) as server:
@@ -45,7 +113,11 @@ def send_email(to_email: str, subject: str, body_html: str, body_text: str | Non
         logger.info(f"Successfully sent email to {to_email} via SMTP ({mail_host}:{mail_port})")
         return True
     except Exception as e:
-        logger.error(f"Failed to send email to {to_email} via SMTP ({mail_host}:{mail_port}): {e}")
+        logger.error(
+            f"Failed to send email to {to_email} via SMTP ({mail_host}:{mail_port}): {e}. "
+            f"If this is a timeout, outbound SMTP is likely blocked by the host — "
+            f"set MAIL_MAILER=sendgrid_api to send over HTTPS instead."
+        )
         return False
 
 
