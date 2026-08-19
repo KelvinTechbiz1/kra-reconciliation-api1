@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import { Check, X, AlertTriangle, ArrowUpDown, ChevronDown, ChevronRight, Database, FileSpreadsheet, CheckCircle2, Calculator } from "lucide-react";
 import { Invoice, ReconciliationResult, ReconciliationSummary } from "../types";
+import { RESULT_FILTERS, ResultFilter } from "@/types";
 
 const formatVatGroup = (vat?: string) => {
   if (!vat) return "";
@@ -59,9 +60,14 @@ interface ResultsTableProps {
   hasMore?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
+  /** Active status filter. Owned by the parent because it is a server query parameter. */
+  activeFilter: ResultFilter;
+  onFilterChange: (filter: ResultFilter) => void;
+  /** Whole-session totals per filter, from the results endpoint. */
+  statusCounts: Partial<Record<ResultFilter, number>>;
 }
 
-type FilterType = "All" | "Issues" | "Matches" | "Missing CU" | "Missing SAP" | "Missing KRA" | "Amount" | "VAT" | "CU" | "PIN" | "Date" | "Multiple";
+
 type SortField = "pin" | "invoice_number" | "invoice_date" | "base_amount" | "vat_group" | "status";
 type SortOrder = "asc" | "desc" | null;
 
@@ -156,11 +162,13 @@ export function ResultsTable({
   hasMore = false,
   isLoadingMore = false,
   onLoadMore,
+  activeFilter,
+  onFilterChange,
+  statusCounts,
 }: ResultsTableProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const [filter, setFilter] = useState<FilterType>("All");
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortOrder, setSortOrder] = useState<SortOrder>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -205,49 +213,21 @@ export function ResultsTable({
     setExpandedRows(newExpanded);
   };
 
-  const availableFilters = useMemo(() => {
-    const filterSet = new Set<FilterType>(["All"]);
-    results.forEach((r) => {
-      const st = r.status;
-      if (st === "MATCH" || st === "Matched" || st === "Match") {
-        filterSet.add("Matches");
-      } else {
-        filterSet.add("Issues");
-        if (st === "MISSING_CU_NUMBER" || st === "Missing CU Number") filterSet.add("Missing CU");
-        if (st === "MISSING_IN_SAP" || st === "Missing in SAP") filterSet.add("Missing SAP");
-        if (st === "MISSING_IN_KRA" || st === "Missing in KRA") filterSet.add("Missing KRA");
-        if (st === "AMOUNT_MISMATCH") filterSet.add("Amount");
-        if (st === "VAT_MISMATCH") filterSet.add("VAT");
-        if (st === "CU_MISMATCH" || st === "CU Mismatch") filterSet.add("CU");
-        if (st === "PIN_MISMATCH" || st === "PIN Mismatch") filterSet.add("PIN");
-        if (st === "DATE_MISMATCH") filterSet.add("Date");
-        if (st === "MULTIPLE_MISMATCHES" || st === "DUPLICATE_SOURCE_KEY") filterSet.add("Multiple");
-      }
-    });
-    const order: FilterType[] = ["All", "Issues", "Matches", "Missing CU", "Missing SAP", "Missing KRA", "Amount", "VAT", "CU", "PIN", "Date", "Multiple"];
-    return order.filter(f => filterSet.has(f));
-  }, [results]);
+  // Built from whole-session counts, so every non-empty group is offered from the
+  // first page. Deriving them from `results` meant a chip only appeared once a row of
+  // that status had been scrolled into memory.
+  // The active filter is always shown even when empty — the KPI cards can select a group
+  // with no rows, and dropping its chip would leave the user with no visible way back.
+  const availableFilters = useMemo(
+    () =>
+      RESULT_FILTERS.filter(
+        (f) => f === "All" || f === activeFilter || (statusCounts[f] ?? 0) > 0
+      ),
+    [statusCounts, activeFilter]
+  );
 
-  const activeFilter = availableFilters.includes(filter) ? filter : "All";
-
-  const filteredResults = useMemo(() => {
-    return results.filter((r) => {
-      const st = r.status;
-      if (activeFilter === "All") return true;
-      if (activeFilter === "Matches") return st === "MATCH" || st === "Matched" || st === "Match";
-      if (activeFilter === "Issues") return st !== "MATCH" && st !== "Matched" && st !== "Match";
-      if (activeFilter === "Missing CU") return st === "MISSING_CU_NUMBER" || st === "Missing CU Number";
-      if (activeFilter === "Missing SAP") return st === "MISSING_IN_SAP" || st === "Missing in SAP";
-      if (activeFilter === "Missing KRA") return st === "MISSING_IN_KRA" || st === "Missing in KRA";
-      if (activeFilter === "Amount") return st === "AMOUNT_MISMATCH";
-      if (activeFilter === "VAT") return st === "VAT_MISMATCH";
-      if (activeFilter === "CU") return st === "CU_MISMATCH" || st === "CU Mismatch";
-      if (activeFilter === "PIN") return st === "PIN_MISMATCH" || st === "PIN Mismatch";
-      if (activeFilter === "Date") return st === "DATE_MISMATCH";
-      if (activeFilter === "Multiple") return st === "MULTIPLE_MISMATCHES" || st === "DUPLICATE_SOURCE_KEY";
-      return true;
-    });
-  }, [results, activeFilter]);
+  // The server has already applied the filter; these are exactly the rows to show.
+  const filteredResults = results;
 
   const sortedResults = useMemo(() => {
     if (!sortField || !sortOrder) return filteredResults;
@@ -287,7 +267,10 @@ export function ResultsTable({
     }
   }, [sortedResults.length, hasMore, isLoadingMore, onLoadMore]);
 
-  if (!results || results.length === 0) return null;
+  // Only bail out when the session genuinely has nothing. An empty page under an active
+  // filter must still render the chips, or the user would have no way back to "All".
+  const sessionHasResults = (statusCounts.All ?? results.length) > 0;
+  if (!sessionHasResults) return null;
 
   const issuesCount = summary ? summary.total_sap + summary.total_kra - 2 * summary.matches : 0;
 
@@ -298,7 +281,7 @@ export function ResultsTable({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
           {/* SAP Records Card - Deep Navy Logo Color (#0e1734) */}
           <div 
-            onClick={() => setFilter("All")}
+            onClick={() => onFilterChange("All")}
             className="rounded-xl p-4 transition-all cursor-pointer flex items-center justify-between group shadow-sm bg-gradient-to-br from-[#0e1734] to-[#16295c] text-white border border-[#23356f] hover:scale-[1.01] hover:shadow-md"
           >
             <div>
@@ -312,7 +295,7 @@ export function ResultsTable({
 
           {/* KRA Records Card - Secondary Slate Navy Logo Tone */}
           <div 
-            onClick={() => setFilter("All")}
+            onClick={() => onFilterChange("All")}
             className="rounded-xl p-4 transition-all cursor-pointer flex items-center justify-between group shadow-sm bg-gradient-to-br from-[#1a274e] to-[#0f1836] text-white border border-[#283b75] hover:scale-[1.01] hover:shadow-md"
           >
             <div>
@@ -326,7 +309,7 @@ export function ResultsTable({
 
           {/* Matches Card - Brand Vibrant Orange (#f88602) */}
           <div 
-            onClick={() => setFilter("Matches")}
+            onClick={() => onFilterChange("Matches")}
             className={`rounded-xl p-4 transition-all cursor-pointer flex items-center justify-between group shadow-sm bg-gradient-to-br from-[#f88602] to-[#d97200] text-white border border-[#ff9d26] ${
               activeFilter === "Matches" ? "ring-2 ring-white shadow-md scale-[1.02]" : "hover:scale-[1.01] hover:shadow-md opacity-95 hover:opacity-100"
             }`}
@@ -342,7 +325,7 @@ export function ResultsTable({
 
           {/* Issues Card - Dark Red / Crimson Brand Contrast */}
           <div 
-            onClick={() => setFilter("Issues")}
+            onClick={() => onFilterChange("Issues")}
             className={`rounded-xl p-4 transition-all cursor-pointer flex items-center justify-between group shadow-sm bg-gradient-to-br from-[#85182a] to-[#4d0c17] text-white border border-[#a8253a] ${
               activeFilter === "Issues" ? "ring-2 ring-white shadow-md scale-[1.02]" : "hover:scale-[1.01] hover:shadow-md opacity-95 hover:opacity-100"
             }`}
@@ -364,10 +347,15 @@ export function ResultsTable({
           {availableFilters.map((f) => (
             <button
               key={f}
-              onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-md transition-colors ${activeFilter === f ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+              onClick={() => onFilterChange(f)}
+              className={`px-3 py-1.5 rounded-md transition-colors cursor-pointer flex items-center gap-1.5 ${activeFilter === f ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
             >
               {f}
+              {statusCounts[f] !== undefined && (
+                <span className={`text-[10px] font-mono ${activeFilter === f ? "text-slate-500" : "text-slate-400"}`}>
+                  {statusCounts[f]}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -667,9 +655,22 @@ export function ResultsTable({
                   ))}
                 </>
               )}
+              {sortedResults.length === 0 && (
+                <tr>
+                  <td colSpan={10} className="px-4 py-16 text-center text-sm text-slate-500">
+                    {isLoadingMore ? (
+                      <span>Loading {activeFilter === "All" ? "results" : activeFilter}…</span>
+                    ) : (
+                      <span>
+                        No rows under <span className="font-semibold text-slate-700">{activeFilter}</span>.
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
-          
+
           {/* Intersection Sentinel element */}
           {hasMore && <div ref={sentinelRef} className="h-4 w-full" />}
         </div>

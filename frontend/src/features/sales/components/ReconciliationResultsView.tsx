@@ -6,6 +6,7 @@ import { ResultsTable } from "./ResultsTable";
 import { Download, ArrowLeft, AlertTriangle, Inbox } from "lucide-react";
 import { exportReconciliationZip } from "../api/exportApi";
 import { AsyncStatus } from "../workspace/types";
+import { ResultFilter } from "@/types";
 
 interface ReconciliationResultsViewProps {
   sessionId: string;
@@ -20,6 +21,9 @@ interface ReconciliationResultsViewProps {
   };
   comparisonStatus?: AsyncStatus;
   emptyReason?: "SAP" | "KRA";
+  resultsFilter: ResultFilter;
+  onResultsFilterChange: (filter: ResultFilter) => void;
+  resultStatusCounts: Partial<Record<ResultFilter, number>>;
   onBack: () => void;
 }
 
@@ -30,6 +34,9 @@ export function ReconciliationResultsView({
   resultsPagination, 
   comparisonStatus,
   emptyReason,
+  resultsFilter,
+  onResultsFilterChange,
+  resultStatusCounts,
   onBack 
 }: ReconciliationResultsViewProps) {
   const [exporting, setExporting] = useState(false);
@@ -132,6 +139,9 @@ export function ReconciliationResultsView({
             hasMore={resultsPagination.hasMore}
             isLoadingMore={resultsPagination.isLoadingMore || resultsPagination.isInitialLoading}
             onLoadMore={resultsPagination.loadNextPage}
+            activeFilter={resultsFilter}
+            onFilterChange={onResultsFilterChange}
+            statusCounts={resultStatusCounts}
           />
         </div>
       )}

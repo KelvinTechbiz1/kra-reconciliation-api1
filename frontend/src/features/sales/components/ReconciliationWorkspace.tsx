@@ -20,6 +20,7 @@ export function ReconciliationWorkspace({ type }: ReconciliationWorkspaceProps) 
     uiState, summary, globalError, handleLoadSap, handleLoadErpFile, handleFileUpload, 
     handleCompare: triggerCompare,
     sapPagination, kraPagination, resultsPagination,
+    resultsFilter, setResultsFilter, resultStatusCounts,
     workflowStep, readyToCompare, sessionId
   } = useWorkspace(type);
 
@@ -82,6 +83,9 @@ export function ReconciliationWorkspace({ type }: ReconciliationWorkspaceProps) 
                resultsPagination={resultsPagination}
                comparisonStatus={uiState.comparison.status}
                emptyReason={uiState.comparison.emptyReason}
+               resultsFilter={resultsFilter}
+               onResultsFilterChange={setResultsFilter}
+               resultStatusCounts={resultStatusCounts}
                onBack={() => setNavState("workspace")}
              />
           ) : (

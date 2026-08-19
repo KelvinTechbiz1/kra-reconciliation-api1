@@ -5,6 +5,11 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user, get_active_session
 from app.database.database import get_db
+from app.domain.reconciliation_constants import (
+    RESULT_FILTERS,
+    RESULT_FILTER_ALL,
+    result_filter_counts,
+)
 from app.domain.reconciliation_status import ReconciliationStatus
 from app.models.user import User
 from app.models.reconciliation_session import SessionInvoice, SessionReconciliationResult
@@ -73,11 +78,21 @@ def get_session_reconciliation_results(
     session_id: str,
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(100, ge=1, le=500, description="Items per page"),
+    status_filter: str = Query(
+        RESULT_FILTER_ALL,
+        description=f"Restrict to one status group: {RESULT_FILTER_ALL} or one of {', '.join(RESULT_FILTERS)}",
+    ),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Retrieve a paginated slice of reconciliation comparison results.
+
+    Filtering happens here rather than in the browser. The table loads by infinite
+    scroll, so a client-side filter could only ever search the rows already fetched —
+    picking "Matches" on a large session showed nothing until the user had scrolled far
+    enough to pull one in. `status_counts` covers every group for the whole session, so
+    the filter chips are complete from the first page.
     """
     # Validate session
     session = get_active_session(session_id=session_id, db=db, current_user=current_user)
@@ -88,17 +103,39 @@ def get_session_reconciliation_results(
              detail="Reconciliation comparison has not been executed for this session."
          )
 
+    if status_filter != RESULT_FILTER_ALL and status_filter not in RESULT_FILTERS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown status filter '{status_filter}'. Expected {RESULT_FILTER_ALL} "
+                   f"or one of: {', '.join(sorted(RESULT_FILTERS))}.",
+        )
+
     offset = (page - 1) * limit
 
-    # Count query
-    total = db.query(func.count(SessionReconciliationResult.id)).filter(
+    # Whole-session totals per status, so the chips can show counts the current page
+    # knows nothing about. One grouped query regardless of how many statuses exist.
+    status_totals = dict(
+        db.query(SessionReconciliationResult.status, func.count(SessionReconciliationResult.id))
+        .filter(SessionReconciliationResult.session_id == session.id)
+        .group_by(SessionReconciliationResult.status)
+        .all()
+    )
+    status_counts = result_filter_counts(status_totals)
+
+    base_query = db.query(SessionReconciliationResult).filter(
         SessionReconciliationResult.session_id == session.id
-    ).scalar()
+    )
+    if status_filter != RESULT_FILTER_ALL:
+        base_query = base_query.filter(
+            SessionReconciliationResult.status.in_(RESULT_FILTERS[status_filter])
+        )
+
+    total = status_counts.get(status_filter, 0)
 
     # Data query
-    db_results = db.query(SessionReconciliationResult).filter(
-        SessionReconciliationResult.session_id == session.id
-    ).order_by(SessionReconciliationResult.row_number).offset(offset).limit(limit).all()
+    db_results = base_query.order_by(
+        SessionReconciliationResult.row_number
+    ).offset(offset).limit(limit).all()
 
     results = []
     for r in db_results:
@@ -163,5 +200,7 @@ def get_session_reconciliation_results(
         page=page,
         page_size=limit,
         total_pages=total_pages,
-        items=results
+        items=results,
+        status_filter=status_filter,
+        status_counts=status_counts,
     )

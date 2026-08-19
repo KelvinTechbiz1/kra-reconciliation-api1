@@ -13,6 +13,7 @@ import {
   FileUploadStatus
 } from "../api/reconciliation";
 import { AsyncStatus, WorkspaceUIState } from "./types";
+import { ResultFilter } from "@/types";
 import { getWorkflowStep, getSessionStatus, isReadyToCompare, getMetrics } from "./selectors";
 
 export function useWorkspace(type: "sales" | "purchases") {
@@ -46,10 +47,22 @@ export function useWorkspace(type: "sales" | "purchases") {
     return fetchInvoicesPage(sessionId, "KRA", page, limit);
   }, [sessionId]);
 
-  const fetchResultsPage = useCallback((page: number, limit: number) => {
+  // Which status group the results table is showing. Held here rather than inside the
+  // table because it is a query parameter: changing it refetches from page 1 instead of
+  // narrowing whatever happens to be in memory.
+  const [resultsFilter, setResultsFilter] = useState<ResultFilter>("All");
+  const [resultStatusCounts, setResultStatusCounts] = useState<Partial<Record<ResultFilter, number>>>({});
+
+  const fetchResultsPage = useCallback(async (page: number, limit: number) => {
     if (!sessionId) return Promise.reject("No active session");
-    return fetchReconciliationResultsPage(sessionId, page, limit);
-  }, [sessionId]);
+    const res = await fetchReconciliationResultsPage(sessionId, page, limit, resultsFilter);
+    // Counts describe the whole session, so they only need writing when they actually
+    // change — not on every page of an infinite scroll.
+    setResultStatusCounts((prev) =>
+      JSON.stringify(prev) === JSON.stringify(res.status_counts) ? prev : res.status_counts
+    );
+    return res;
+  }, [sessionId, resultsFilter]);
 
   // Hook Instantiations
   const sapPagination = usePagination<Invoice>(fetchSapPage, { limit: 100, enabled: false });
@@ -76,6 +89,8 @@ export function useWorkspace(type: "sales" | "purchases") {
     sapPagination.reset();
     kraPagination.reset();
     resultsPagination.reset();
+    setResultsFilter("All");
+    setResultStatusCounts({});
     setFileStatuses([]);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -194,6 +209,8 @@ export function useWorkspace(type: "sales" | "purchases") {
     setUiState(prev => ({ ...prev, comparison: { status: AsyncStatus.Loading } }));
     setGlobalError(null);
     resultsPagination.reset();
+    setResultsFilter("All");
+    setResultStatusCounts({});
 
     try {
       const data = await compareInvoices(sessionId);
@@ -260,6 +277,9 @@ export function useWorkspace(type: "sales" | "purchases") {
     uiState,
     summary,
     globalError,
+    resultsFilter,
+    setResultsFilter,
+    resultStatusCounts,
     setGlobalError,
     handleLoadSap,
     handleLoadErpFile,

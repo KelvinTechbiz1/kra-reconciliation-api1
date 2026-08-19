@@ -79,4 +79,9 @@ class PaginatedReconciliationResultsResponse(BaseModel):
     page_size: int
     total_pages: int
     items: list[ReconciliationResult]
+    # The filter this page was built with, echoed back so a late response for a
+    # superseded filter can be recognised and discarded.
+    status_filter: str = "All"
+    # Whole-session totals per filter chip, independent of the page being viewed.
+    status_counts: dict[str, int] = {}
 

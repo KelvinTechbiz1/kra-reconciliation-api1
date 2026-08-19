@@ -49,3 +49,44 @@ REMARK_MAP: dict[ReconciliationStatus, str] = {
 # REMARK_MAP              — change wording freely; no version tracked
 STATUS_PRIORITY_VERSION: str = "3"
 EXPORT_SCHEMA_VERSION:   str = "2.0"
+
+
+# ---------------------------------------------------------------------------
+# Result filters
+# ---------------------------------------------------------------------------
+# The names the results table offers as filter chips, mapped to the statuses each
+# one selects. Filtering runs in SQL rather than over the rows the browser happens
+# to have scrolled into memory: a filter that only searched loaded rows forced the
+# user to scroll until a matching row appeared before its chip was even usable.
+# "All" is deliberately absent — it means "no filter", not "every status".
+RESULT_FILTERS: dict[str, frozenset[ReconciliationStatus]] = {
+    "Matches": frozenset({ReconciliationStatus.MATCH}),
+    "Issues": frozenset(s for s in ReconciliationStatus if s != ReconciliationStatus.MATCH),
+    "Missing CU": frozenset({ReconciliationStatus.MISSING_CU_NUMBER}),
+    "Missing SAP": frozenset({ReconciliationStatus.MISSING_IN_SAP}),
+    "Missing KRA": frozenset({ReconciliationStatus.MISSING_IN_KRA}),
+    "Amount": frozenset({ReconciliationStatus.AMOUNT_MISMATCH}),
+    "VAT": frozenset({ReconciliationStatus.VAT_MISMATCH}),
+    "CU": frozenset({ReconciliationStatus.CU_MISMATCH}),
+    "PIN": frozenset({ReconciliationStatus.PIN_MISMATCH}),
+    "Multiple": frozenset({
+        ReconciliationStatus.MULTIPLE_MISMATCHES,
+        ReconciliationStatus.DUPLICATE_SOURCE_KEY,
+    }),
+}
+
+RESULT_FILTER_ALL = "All"
+
+
+def result_filter_counts(status_counts: dict[ReconciliationStatus, int]) -> dict[str, int]:
+    """Rolls per-status totals up into per-chip totals.
+
+    Every chip is reported, zeros included, so the caller can decide whether to hide
+    an empty one without having to know which statuses feed it.
+    """
+    counts = {
+        name: sum(status_counts.get(status, 0) for status in statuses)
+        for name, statuses in RESULT_FILTERS.items()
+    }
+    counts[RESULT_FILTER_ALL] = sum(status_counts.values())
+    return counts

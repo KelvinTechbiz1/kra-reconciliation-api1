@@ -1,6 +1,6 @@
 import { fetchWithAuth } from "@/lib/api";
 import { Invoice, ReconciliationResult, ReconciliationSummary } from "../types";
-import { PaginatedResponse } from "@/types";
+import { PaginatedResponse, PaginatedResultsResponse, ResultFilter } from "@/types";
 
 export interface InvoiceFetchResponse {
   session_id: string;
@@ -108,9 +108,13 @@ export async function fetchInvoicesPage(
 export async function fetchReconciliationResultsPage(
   sessionId: string,
   page: number,
-  limit: number
-): Promise<PaginatedResponse<ReconciliationResult>> {
-  const res = await fetchWithAuth(`/sessions/${sessionId}/results?page=${page}&limit=${limit}`);
+  limit: number,
+  statusFilter: ResultFilter = "All"
+): Promise<PaginatedResultsResponse<ReconciliationResult>> {
+  const res = await fetchWithAuth(
+    `/sessions/${sessionId}/results?page=${page}&limit=${limit}` +
+    `&status_filter=${encodeURIComponent(statusFilter)}`
+  );
   if (!res.ok) {
     throw new Error("Failed to fetch reconciliation results");
   }
