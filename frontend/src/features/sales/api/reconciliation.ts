@@ -1,6 +1,12 @@
 import { fetchWithAuth } from "@/lib/api";
 import { Invoice, ReconciliationResult, ReconciliationSummary } from "../types";
-import { PaginatedResponse, PaginatedResultsResponse, ResultFilter } from "@/types";
+import {
+  PaginatedResponse,
+  PaginatedResultsResponse,
+  ResultFilter,
+  ResultSortField,
+  ResultSortOrder,
+} from "@/types";
 
 export interface InvoiceFetchResponse {
   session_id: string;
@@ -109,12 +115,20 @@ export async function fetchReconciliationResultsPage(
   sessionId: string,
   page: number,
   limit: number,
-  statusFilter: ResultFilter = "All"
+  statusFilter: ResultFilter = "All",
+  sortField: ResultSortField | null = null,
+  sortOrder: ResultSortOrder = "asc"
 ): Promise<PaginatedResultsResponse<ReconciliationResult>> {
-  const res = await fetchWithAuth(
-    `/sessions/${sessionId}/results?page=${page}&limit=${limit}` +
-    `&status_filter=${encodeURIComponent(statusFilter)}`
-  );
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+    status_filter: statusFilter,
+  });
+  if (sortField) {
+    params.set("sort_field", sortField);
+    params.set("sort_order", sortOrder);
+  }
+  const res = await fetchWithAuth(`/sessions/${sessionId}/results?${params}`);
   if (!res.ok) {
     throw new Error("Failed to fetch reconciliation results");
   }

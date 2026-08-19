@@ -6,8 +6,14 @@ from app.domain.reconciliation_status import ReconciliationStatus
 from app.models.reconciliation_session import SessionReconciliationResult
 from app.repositories.projections import ReconciliationProjection
 
-_STATUS_ORDER_EXPR = case(
-    {s.value: p for s, p in STATUS_PRIORITY.items()},
+# Ranks a row by STATUS_ORDER so the statuses needing attention lead.
+#
+# Keyed on the enum NAME, not its value: the column is Enum(..., native_enum=False),
+# and SQLAlchemy persists `MATCH`, not `Match`. Keying on `.value` compiled to a CASE
+# that could never match, so every row scored `else_` and the ordering silently
+# collapsed to the tie-breakers.
+STATUS_ORDER_EXPR = case(
+    {s.name: p for s, p in STATUS_PRIORITY.items()},
     value=SessionReconciliationResult.status,
     else_=len(STATUS_ORDER) + 1,
 )
@@ -23,7 +29,7 @@ def get_projections(session_id: str, db: Session) -> list[ReconciliationProjecti
         db.query(SessionReconciliationResult)
         .filter(SessionReconciliationResult.session_id == session_id)
         .order_by(
-            _STATUS_ORDER_EXPR,
+            STATUS_ORDER_EXPR,
             SessionReconciliationResult.cu_number,
             SessionReconciliationResult.sap_invoice_number,
             SessionReconciliationResult.kra_invoice_number,

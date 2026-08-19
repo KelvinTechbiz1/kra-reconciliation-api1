@@ -13,7 +13,7 @@ import {
   FileUploadStatus
 } from "../api/reconciliation";
 import { AsyncStatus, WorkspaceUIState } from "./types";
-import { ResultFilter } from "@/types";
+import { ResultFilter, ResultSortField, ResultSortOrder } from "@/types";
 import { getWorkflowStep, getSessionStatus, isReadyToCompare, getMetrics } from "./selectors";
 
 export function useWorkspace(type: "sales" | "purchases") {
@@ -52,17 +52,25 @@ export function useWorkspace(type: "sales" | "purchases") {
   // narrowing whatever happens to be in memory.
   const [resultsFilter, setResultsFilter] = useState<ResultFilter>("All");
   const [resultStatusCounts, setResultStatusCounts] = useState<Partial<Record<ResultFilter, number>>>({});
+  // Sort lives here for the same reason the filter does: it orders the whole session in
+  // SQL, not just the rows infinite scroll happens to have fetched.
+  const [resultsSort, setResultsSort] = useState<{ field: ResultSortField | null; order: ResultSortOrder }>({
+    field: null,
+    order: "asc",
+  });
 
   const fetchResultsPage = useCallback(async (page: number, limit: number) => {
     if (!sessionId) return Promise.reject("No active session");
-    const res = await fetchReconciliationResultsPage(sessionId, page, limit, resultsFilter);
+    const res = await fetchReconciliationResultsPage(
+      sessionId, page, limit, resultsFilter, resultsSort.field, resultsSort.order
+    );
     // Counts describe the whole session, so they only need writing when they actually
     // change — not on every page of an infinite scroll.
     setResultStatusCounts((prev) =>
       JSON.stringify(prev) === JSON.stringify(res.status_counts) ? prev : res.status_counts
     );
     return res;
-  }, [sessionId, resultsFilter]);
+  }, [sessionId, resultsFilter, resultsSort]);
 
   // Hook Instantiations
   const sapPagination = usePagination<Invoice>(fetchSapPage, { limit: 100, enabled: false });
@@ -91,6 +99,7 @@ export function useWorkspace(type: "sales" | "purchases") {
     resultsPagination.reset();
     setResultsFilter("All");
     setResultStatusCounts({});
+    setResultsSort({ field: null, order: "asc" });
     setFileStatuses([]);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -211,6 +220,7 @@ export function useWorkspace(type: "sales" | "purchases") {
     resultsPagination.reset();
     setResultsFilter("All");
     setResultStatusCounts({});
+    setResultsSort({ field: null, order: "asc" });
 
     try {
       const data = await compareInvoices(sessionId);
@@ -254,6 +264,15 @@ export function useWorkspace(type: "sales" | "purchases") {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  // asc -> desc -> unsorted, the cycle the column headers already implied.
+  const toggleResultsSort = useCallback((field: ResultSortField) => {
+    setResultsSort((prev) => {
+      if (prev.field !== field) return { field, order: "asc" };
+      if (prev.order === "asc") return { field, order: "desc" };
+      return { field: null, order: "asc" };
+    });
+  }, []);
+
   // Derived Values
   const workflowStep = getWorkflowStep(uiState);
   const sessionStatus = getSessionStatus(uiState);
@@ -280,6 +299,8 @@ export function useWorkspace(type: "sales" | "purchases") {
     resultsFilter,
     setResultsFilter,
     resultStatusCounts,
+    resultsSort,
+    toggleResultsSort,
     setGlobalError,
     handleLoadSap,
     handleLoadErpFile,

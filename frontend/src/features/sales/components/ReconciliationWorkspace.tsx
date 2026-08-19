@@ -20,7 +20,7 @@ export function ReconciliationWorkspace({ type }: ReconciliationWorkspaceProps) 
     uiState, summary, globalError, handleLoadSap, handleLoadErpFile, handleFileUpload, 
     handleCompare: triggerCompare,
     sapPagination, kraPagination, resultsPagination,
-    resultsFilter, setResultsFilter, resultStatusCounts,
+    resultsFilter, setResultsFilter, resultStatusCounts, resultsSort, toggleResultsSort,
     workflowStep, readyToCompare, sessionId
   } = useWorkspace(type);
 
@@ -86,6 +86,8 @@ export function ReconciliationWorkspace({ type }: ReconciliationWorkspaceProps) 
                resultsFilter={resultsFilter}
                onResultsFilterChange={setResultsFilter}
                resultStatusCounts={resultStatusCounts}
+               resultsSort={resultsSort}
+               onResultsSortToggle={toggleResultsSort}
                onBack={() => setNavState("workspace")}
              />
           ) : (

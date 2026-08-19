@@ -84,4 +84,7 @@ class PaginatedReconciliationResultsResponse(BaseModel):
     status_filter: str = "All"
     # Whole-session totals per filter chip, independent of the page being viewed.
     status_counts: dict[str, int] = {}
+    # The ordering this page was built with, echoed back alongside status_filter.
+    sort_field: str | None = None
+    sort_order: str = "asc"
 

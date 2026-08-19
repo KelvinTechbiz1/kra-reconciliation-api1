@@ -8,15 +8,35 @@ from app.database.database import get_db
 from app.domain.reconciliation_constants import (
     RESULT_FILTERS,
     RESULT_FILTER_ALL,
+    RESULT_SORT_FIELDS,
+    RESULT_SORT_ORDERS,
     result_filter_counts,
 )
 from app.domain.reconciliation_status import ReconciliationStatus
 from app.models.user import User
 from app.models.reconciliation_session import SessionInvoice, SessionReconciliationResult
+from app.repositories.reconciliation_repository import STATUS_ORDER_EXPR
 from app.schemas.invoice import InvoiceSource, Invoice, PaginatedInvoicesResponse
 from app.schemas.reconciliation import ReconciliationResult, PaginatedReconciliationResultsResponse, InvoiceType
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
+
+
+def _result_order_by(sort_field: str | None, sort_order: str):
+    """ORDER BY terms for a validated sort field, or () for source order."""
+    if sort_field is None:
+        return ()
+
+    columns = RESULT_SORT_FIELDS[sort_field]
+    if columns is None:
+        expression = STATUS_ORDER_EXPR
+    else:
+        sap_col, kra_col = (getattr(SessionReconciliationResult, name) for name in columns)
+        # Mirrors the table, which shows the SAP value and falls back to KRA. NULLIF
+        # treats an empty string as absent so a blank SAP cell falls through too.
+        expression = func.coalesce(func.nullif(sap_col, ""), kra_col)
+
+    return (expression.desc() if sort_order == "desc" else expression.asc(),)
 
 
 @router.get("/{session_id}/invoices", response_model=PaginatedInvoicesResponse)
@@ -82,6 +102,11 @@ def get_session_reconciliation_results(
         RESULT_FILTER_ALL,
         description=f"Restrict to one status group: {RESULT_FILTER_ALL} or one of {', '.join(RESULT_FILTERS)}",
     ),
+    sort_field: str | None = Query(
+        None,
+        description=f"Sort column: one of {', '.join(RESULT_SORT_FIELDS)}. Omit for source order.",
+    ),
+    sort_order: str = Query("asc", description="asc or desc"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -110,6 +135,19 @@ def get_session_reconciliation_results(
                    f"or one of: {', '.join(sorted(RESULT_FILTERS))}.",
         )
 
+    if sort_field is not None and sort_field not in RESULT_SORT_FIELDS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown sort field '{sort_field}'. "
+                   f"Expected one of: {', '.join(sorted(RESULT_SORT_FIELDS))}.",
+        )
+
+    if sort_order not in RESULT_SORT_ORDERS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown sort order '{sort_order}'. Expected one of: {', '.join(RESULT_SORT_ORDERS)}.",
+        )
+
     offset = (page - 1) * limit
 
     # Whole-session totals per status, so the chips can show counts the current page
@@ -132,9 +170,12 @@ def get_session_reconciliation_results(
 
     total = status_counts.get(status_filter, 0)
 
-    # Data query
+    # Data query. row_number is always the final tie-breaker so paging stays stable:
+    # equal sort keys must not shuffle between requests, or infinite scroll would
+    # duplicate some rows and skip others.
+    order_by = _result_order_by(sort_field, sort_order)
     db_results = base_query.order_by(
-        SessionReconciliationResult.row_number
+        *order_by, SessionReconciliationResult.row_number
     ).offset(offset).limit(limit).all()
 
     results = []
@@ -203,4 +244,6 @@ def get_session_reconciliation_results(
         items=results,
         status_filter=status_filter,
         status_counts=status_counts,
+        sort_field=sort_field,
+        sort_order=sort_order,
     )

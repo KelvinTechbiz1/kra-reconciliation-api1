@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useMemo } from "react";
-import { Check, X, AlertTriangle, ArrowUpDown, ChevronDown, ChevronRight, Database, FileSpreadsheet, CheckCircle2, Calculator } from "lucide-react";
+import { Check, X, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronRight, Database, FileSpreadsheet, CheckCircle2, Calculator } from "lucide-react";
 import { Invoice, ReconciliationResult, ReconciliationSummary } from "../types";
-import { RESULT_FILTERS, ResultFilter } from "@/types";
+import { RESULT_FILTERS, ResultFilter, ResultSortField, ResultSortOrder } from "@/types";
 
 const formatVatGroup = (vat?: string) => {
   if (!vat) return "";
@@ -65,11 +65,12 @@ interface ResultsTableProps {
   onFilterChange: (filter: ResultFilter) => void;
   /** Whole-session totals per filter, from the results endpoint. */
   statusCounts: Partial<Record<ResultFilter, number>>;
+  /** Active ordering. Also owned by the parent — the server does the sorting. */
+  sort: { field: ResultSortField | null; order: ResultSortOrder };
+  onSortToggle: (field: ResultSortField) => void;
 }
 
 
-type SortField = "pin" | "invoice_number" | "invoice_date" | "base_amount" | "vat_group" | "status";
-type SortOrder = "asc" | "desc" | null;
 
 function CompareCell({
   sapVal,
@@ -156,6 +157,17 @@ function InformationalCell({
   );
 }
 
+/** Now that ordering happens server-side, the header shows which way it is sorted
+ * rather than a direction-agnostic hint. */
+function SortIcon({ active, order }: { active: boolean; order: ResultSortOrder | null }) {
+  if (!active) {
+    return <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100" />;
+  }
+  return order === "desc"
+    ? <ArrowDown className="w-3 h-3 text-slate-900" />
+    : <ArrowUp className="w-3 h-3 text-slate-900" />;
+}
+
 export function ResultsTable({
   results,
   summary,
@@ -165,12 +177,12 @@ export function ResultsTable({
   activeFilter,
   onFilterChange,
   statusCounts,
+  sort,
+  onSortToggle,
 }: ResultsTableProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const [sortField, setSortField] = useState<SortField | null>(null);
-  const [sortOrder, setSortOrder] = useState<SortOrder>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -196,15 +208,9 @@ export function ResultsTable({
     }
   };
 
-  const toggleSort = (field: SortField) => {
-    if (sortField === field) {
-      if (sortOrder === "asc") setSortOrder("desc");
-      else if (sortOrder === "desc") { setSortField(null); setSortOrder(null); }
-    } else {
-      setSortField(field);
-      setSortOrder("asc");
-    }
-  };
+  const sortField = sort.field;
+  const sortOrder = sort.field ? sort.order : null;
+  const toggleSort = onSortToggle;
 
   const toggleExpand = (id: string) => {
     const newExpanded = new Set(expandedRows);
@@ -229,35 +235,8 @@ export function ResultsTable({
   // The server has already applied the filter; these are exactly the rows to show.
   const filteredResults = results;
 
-  const sortedResults = useMemo(() => {
-    if (!sortField || !sortOrder) return filteredResults;
-    return [...filteredResults].sort((a, b) => {
-      let aVal: string | number | undefined | null = "";
-      let bVal: string | number | undefined | null = "";
-      
-      const sapA = a.sap || {} as Partial<Invoice>;
-      const kraA = a.kra || {} as Partial<Invoice>;
-      const sapB = b.sap || {} as Partial<Invoice>;
-      const kraB = b.kra || {} as Partial<Invoice>;
-
-      // Default to SAP value for sorting unless it's missing
-      const getVal = (sap: Partial<Invoice>, kra: Partial<Invoice>, field: keyof Invoice) => sap[field] || kra[field] || "";
-
-      if (sortField === "pin") { aVal = getVal(sapA, kraA, "pin"); bVal = getVal(sapB, kraB, "pin"); }
-      if (sortField === "invoice_number") { aVal = getVal(sapA, kraA, "invoice_number"); bVal = getVal(sapB, kraB, "invoice_number"); }
-      if (sortField === "invoice_date") { aVal = getVal(sapA, kraA, "invoice_date"); bVal = getVal(sapB, kraB, "invoice_date"); }
-      if (sortField === "base_amount") { 
-        aVal = Number(sapA.base_amount || kraA.base_amount || 0); 
-        bVal = Number(sapB.base_amount || kraB.base_amount || 0); 
-      }
-      if (sortField === "vat_group") { aVal = getVal(sapA, kraA, "vat_group"); bVal = getVal(sapB, kraB, "vat_group"); }
-      if (sortField === "status") { aVal = a.status; bVal = b.status; }
-
-      if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
-      if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
-      return 0;
-    });
-  }, [filteredResults, sortField, sortOrder]);
+  // Already ordered by the server; `results` is the page in its final order.
+  const sortedResults = filteredResults;
 
   useEffect(() => {
     if (!onLoadMore || !hasMore || isLoadingMore) return;
@@ -369,24 +348,24 @@ export function ResultsTable({
                 <th className="px-3 py-3 font-medium w-8 text-center bg-slate-50"></th>
                 <th className="px-2 py-3 font-medium w-8 text-center bg-slate-50"></th>
                 <th className="px-4 py-3 font-medium bg-slate-50 cursor-pointer select-none group" onClick={() => toggleSort("pin")}>
-                  <div className="flex items-center gap-1">PIN <ArrowUpDown className={`w-3 h-3 ${sortField === "pin" ? "text-slate-900" : "text-slate-400 opacity-0 group-hover:opacity-100"}`} /></div>
+                  <div className="flex items-center gap-1">PIN <SortIcon active={sortField === "pin"} order={sortOrder} /></div>
                 </th>
                 <th className="px-4 py-3 font-medium bg-slate-50 cursor-pointer select-none group" onClick={() => toggleSort("invoice_number")}>
-                  <div className="flex items-center gap-1">Invoice No <ArrowUpDown className={`w-3 h-3 ${sortField === "invoice_number" ? "text-slate-900" : "text-slate-400 opacity-0 group-hover:opacity-100"}`} /></div>
+                  <div className="flex items-center gap-1">Invoice No <SortIcon active={sortField === "invoice_number"} order={sortOrder} /></div>
                 </th>
                 <th className="px-4 py-3 font-medium bg-slate-50">Partner Name</th>
                 <th className="px-4 py-3 font-medium bg-slate-50 cursor-pointer select-none group" onClick={() => toggleSort("invoice_date")}>
-                  <div className="flex items-center gap-1">Invoice Date <ArrowUpDown className={`w-3 h-3 ${sortField === "invoice_date" ? "text-slate-900" : "text-slate-400 opacity-0 group-hover:opacity-100"}`} /></div>
+                  <div className="flex items-center gap-1">Invoice Date <SortIcon active={sortField === "invoice_date"} order={sortOrder} /></div>
                 </th>
                 <th className="px-4 py-3 font-medium bg-slate-50">CU Number</th>
                 <th className="px-4 py-3 font-medium text-right bg-slate-50 cursor-pointer select-none group" onClick={() => toggleSort("base_amount")}>
-                  <div className="flex items-center justify-end gap-1">Base Amount <ArrowUpDown className={`w-3 h-3 ${sortField === "base_amount" ? "text-slate-900" : "text-slate-400 opacity-0 group-hover:opacity-100"}`} /></div>
+                  <div className="flex items-center justify-end gap-1">Base Amount <SortIcon active={sortField === "base_amount"} order={sortOrder} /></div>
                 </th>
                 <th className="px-4 py-3 font-medium text-right bg-slate-50 cursor-pointer select-none group" onClick={() => toggleSort("vat_group")}>
-                  <div className="flex items-center justify-end gap-1">VAT Group <ArrowUpDown className={`w-3 h-3 ${sortField === "vat_group" ? "text-slate-900" : "text-slate-400 opacity-0 group-hover:opacity-100"}`} /></div>
+                  <div className="flex items-center justify-end gap-1">VAT Group <SortIcon active={sortField === "vat_group"} order={sortOrder} /></div>
                 </th>
                 <th className="px-4 py-3 font-medium bg-slate-50 cursor-pointer select-none group" onClick={() => toggleSort("status")}>
-                  <div className="flex items-center gap-1">Remark <ArrowUpDown className={`w-3 h-3 ${sortField === "status" ? "text-slate-900" : "text-slate-400 opacity-0 group-hover:opacity-100"}`} /></div>
+                  <div className="flex items-center gap-1">Remark <SortIcon active={sortField === "status"} order={sortOrder} /></div>
                 </th>
               </tr>
             </thead>

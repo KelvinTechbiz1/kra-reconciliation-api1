@@ -90,3 +90,24 @@ def result_filter_counts(status_counts: dict[ReconciliationStatus, int]) -> dict
     }
     counts[RESULT_FILTER_ALL] = sum(status_counts.values())
     return counts
+
+
+# ---------------------------------------------------------------------------
+# Result sorting
+# ---------------------------------------------------------------------------
+# Columns the results table can sort by, mapped to the (SAP, KRA) column pair that
+# backs each one. The table shows the SAP value and falls back to KRA, so sorting
+# follows the same rule. Sorting runs in SQL for the same reason filtering does:
+# ordering only the rows already scrolled into memory answers the wrong question.
+RESULT_SORT_FIELDS: dict[str, tuple[str, str] | None] = {
+    "pin": ("sap_pin", "kra_pin"),
+    "invoice_number": ("sap_invoice_number", "kra_invoice_number"),
+    "invoice_date": ("sap_invoice_date", "kra_invoice_date"),
+    "base_amount": ("sap_base_amount", "kra_base_amount"),
+    "vat_group": ("sap_vat_group", "kra_vat_group"),
+    # Ordered by STATUS_ORDER priority rather than alphabetically, so the statuses
+    # that need attention lead.
+    "status": None,
+}
+
+RESULT_SORT_ORDERS = ("asc", "desc")

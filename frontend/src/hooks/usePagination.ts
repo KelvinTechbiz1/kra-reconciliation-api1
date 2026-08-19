@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { PaginatedResponse } from "@/types";
 
 interface UsePaginationOptions {
@@ -20,27 +20,39 @@ export function usePagination<T>(
   const [isInitialLoading, setIsInitialLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
+  // Every request carries a ticket; only the newest one may write to state. Without
+  // this, switching filter or sort quickly lets a slow earlier response land last and
+  // leave the table showing rows that no longer match what is selected.
+  const requestTicket = useRef(0);
+  const nextTicket = () => (requestTicket.current += 1);
+  const isCurrent = (ticket: number) => requestTicket.current === ticket;
+
   const hasMore = page < totalPages && items.length < total;
 
   const loadNextPage = useCallback(async () => {
     if (isInitialLoading || isLoadingMore || !hasMore) return;
 
+    const ticket = nextTicket();
     setIsLoadingMore(true);
     try {
       const nextPage = page + 1;
       const res = await fetchPage(nextPage, limit);
+      if (!isCurrent(ticket)) return;
       setItems((prev) => [...prev, ...res.items]);
       setPage(res.page);
       setTotal(res.total);
       setTotalPages(res.total_pages);
     } catch (err) {
-      console.error("Failed to load next page:", err);
+      if (isCurrent(ticket)) console.error("Failed to load next page:", err);
     } finally {
-      setIsLoadingMore(false);
+      if (isCurrent(ticket)) setIsLoadingMore(false);
     }
   }, [page, isInitialLoading, isLoadingMore, hasMore, fetchPage, limit]);
 
   const reset = useCallback((initialItems: T[] = [], initialTotal = 0, initialTotalPages = 0) => {
+    // Invalidate anything in flight, so a response from the previous session or filter
+    // cannot append itself onto the fresh list.
+    nextTicket();
     setItems(initialItems);
     setPage(1);
     setTotal(initialTotal);
@@ -51,18 +63,23 @@ export function usePagination<T>(
 
   useEffect(() => {
     if (enabled) {
+      const ticket = nextTicket();
       const fetchInitial = async () => {
         setIsInitialLoading(true);
+        // A fresh load supersedes any append in flight, whose own `finally` will now
+        // decline to clear this flag.
+        setIsLoadingMore(false);
         try {
           const res = await fetchPage(1, limit);
+          if (!isCurrent(ticket)) return;
           setItems(res.items);
           setPage(res.page);
           setTotal(res.total);
           setTotalPages(res.total_pages);
         } catch (err) {
-          console.error("Failed to load initial page:", err);
+          if (isCurrent(ticket)) console.error("Failed to load initial page:", err);
         } finally {
-          setIsInitialLoading(false);
+          if (isCurrent(ticket)) setIsInitialLoading(false);
         }
       };
       fetchInitial();

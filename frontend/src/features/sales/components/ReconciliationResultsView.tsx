@@ -6,7 +6,7 @@ import { ResultsTable } from "./ResultsTable";
 import { Download, ArrowLeft, AlertTriangle, Inbox } from "lucide-react";
 import { exportReconciliationZip } from "../api/exportApi";
 import { AsyncStatus } from "../workspace/types";
-import { ResultFilter } from "@/types";
+import { ResultFilter, ResultSortField, ResultSortOrder } from "@/types";
 
 interface ReconciliationResultsViewProps {
   sessionId: string;
@@ -24,6 +24,8 @@ interface ReconciliationResultsViewProps {
   resultsFilter: ResultFilter;
   onResultsFilterChange: (filter: ResultFilter) => void;
   resultStatusCounts: Partial<Record<ResultFilter, number>>;
+  resultsSort: { field: ResultSortField | null; order: ResultSortOrder };
+  onResultsSortToggle: (field: ResultSortField) => void;
   onBack: () => void;
 }
 
@@ -37,6 +39,8 @@ export function ReconciliationResultsView({
   resultsFilter,
   onResultsFilterChange,
   resultStatusCounts,
+  resultsSort,
+  onResultsSortToggle,
   onBack 
 }: ReconciliationResultsViewProps) {
   const [exporting, setExporting] = useState(false);
@@ -142,6 +146,8 @@ export function ReconciliationResultsView({
             activeFilter={resultsFilter}
             onFilterChange={onResultsFilterChange}
             statusCounts={resultStatusCounts}
+            sort={resultsSort}
+            onSortToggle={onResultsSortToggle}
           />
         </div>
       )}
