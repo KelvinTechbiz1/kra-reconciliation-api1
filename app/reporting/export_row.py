@@ -30,6 +30,7 @@ class ReconciliationExportRow:
     sap_invoice_date:    date | None
     sap_base_amount:     Decimal | None
     sap_vat_group:       str | None
+    sap_cu_number:       str | None = None
     sap_base_16:          Decimal | None = None
     sap_base_8:           Decimal | None = None
     sap_base_0:           Decimal | None = None
@@ -41,6 +42,7 @@ class ReconciliationExportRow:
     kra_invoice_date:    date | None = None
     kra_base_amount:     Decimal | None = None
     kra_vat_group:       str | None = None
+    kra_cu_number:       str | None = None
     kra_base_16:          Decimal | None = None
     kra_base_8:          Decimal | None = None
     kra_base_0:          Decimal | None = None
@@ -132,6 +134,7 @@ def to_export_rows(projections: list[ReconciliationProjection]) -> list[Reconcil
                 sap_invoice_date=p.sap_invoice_date,
                 sap_base_amount=p.sap_base_amount,
                 sap_vat_group=p.sap_vat_group,
+                sap_cu_number=p.sap_cu_number,
                 sap_base_16=p.sap_base_16,
                 sap_base_8=p.sap_base_8,
                 sap_base_0=p.sap_base_0,
@@ -143,6 +146,7 @@ def to_export_rows(projections: list[ReconciliationProjection]) -> list[Reconcil
                 kra_invoice_date=p.kra_invoice_date,
                 kra_base_amount=p.kra_base_amount,
                 kra_vat_group=p.kra_vat_group,
+                kra_cu_number=p.kra_cu_number,
                 kra_base_16=p.kra_base_16,
                 kra_base_8=p.kra_base_8,
                 kra_base_0=p.kra_base_0,

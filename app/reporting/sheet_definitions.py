@@ -35,6 +35,11 @@ _AMOUNT_MATCH_COL = SheetColumn(header="Amount Match", attr="amount_match_symbol
 _VAT_MATCH_COL = SheetColumn(header="VAT Breakdown Match", attr="vat_match_symbol", width=18)
 _REMARK_COL = SheetColumn(header="Remark", attr="remark", width=20)
 
+# Only the CU Mismatch sheet needs these: everywhere else the two sides agree on the CU,
+# and _CU_COL already carries it. Here the whole point of the row is that they differ.
+_SAP_CU = SheetColumn(header="SAP CU Number", attr="sap_cu_number", is_cu=True, width=22)
+_KRA_CU = SheetColumn(header="KRA CU Number", attr="kra_cu_number", is_cu=True, width=22)
+
 _SAP_PIN = SheetColumn(header="SAP PIN", attr="sap_pin", width=18)
 _SAP_PARTNER = SheetColumn(header="SAP Partner", attr="sap_partner_name", width=30)
 _SAP_INV_NUM = SheetColumn(header="SAP Invoice #", attr="sap_invoice_number", width=18)
@@ -124,8 +129,8 @@ WORKBOOK_DEFINITIONS: tuple[WorkbookDefinition, ...] = (
                 title="CU Mismatch",
                 columns=(
                     _CU_COL,
-                    _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_TAX_BREAKDOWN,
-                    _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_TAX_BREAKDOWN,
+                    _SAP_CU, _SAP_PIN, _SAP_PARTNER, _SAP_INV_NUM, _SAP_DATE, _SAP_AMOUNT, _SAP_VAT, _SAP_TAX_BREAKDOWN,
+                    _KRA_CU, _KRA_PIN, _KRA_PARTNER, _KRA_INV_NUM, _KRA_DATE, _KRA_AMOUNT, _KRA_VAT, _KRA_TAX_BREAKDOWN,
                 ),
                 statuses=frozenset({ReconciliationStatus.CU_MISMATCH}),
             ),

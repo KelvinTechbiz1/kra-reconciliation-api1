@@ -111,6 +111,14 @@ class SessionReconciliationResult(Base):
     sap_pin: Mapped[str | None] = mapped_column(String(100), nullable=True)
     kra_pin: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
+    # Per-side CU snapshot. `cu_number` above holds only the SAP-side pairing key, so a
+    # row paired by the fallback heuristic (amount + partner, used precisely when the two
+    # CUs differ) used to redisplay the SAP CU on both sides — a CU Mismatch whose two
+    # values looked identical. Nullable: rows compared before this column existed have
+    # no per-side value, and the read path falls back to `cu_number`.
+    sap_cu_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    kra_cu_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
     session: Mapped["ReconciliationSession"] = relationship("ReconciliationSession", back_populates="results")
 
     __table_args__ = (

@@ -168,6 +168,69 @@ class SAPClient:
 
         raise SAPConnectionError(f"SAP Service Layer returned transient error after {attempts} attempts.")
 
+    # Roughly 25 characters per CardCode clause, so a chunk of this size keeps the query
+    # string well inside typical Service Layer and reverse-proxy URL limits.
+    BP_LOOKUP_CHUNK_SIZE = 50
+
+    def get_business_partner_pins(
+        self,
+        card_codes: List[str],
+        reconciliation_session_id: str = "N/A",
+    ) -> Dict[str, str]:
+        """Reads FederalTaxID from the BusinessPartners master for the given CardCodes.
+
+        A marketing document's FederalTaxID is a snapshot copied from the business partner
+        when the document was posted. A KRA PIN added to the BP master afterwards never
+        reaches documents that already exist, so the invoice reports no PIN even though
+        SAP has one. This lookup lets the caller fill that gap.
+
+        Returns {CardCode: PIN} for partners that have one; codes with no PIN are omitted.
+
+        Never raises. A failed lookup leaves the PIN empty — exactly the behaviour before
+        this fallback existed. Reconciliation must not fail because a supplementary
+        lookup did.
+        """
+        wanted = sorted({str(code).strip() for code in card_codes if code and str(code).strip()})
+        if not wanted:
+            return {}
+
+        self._ensure_session()
+        url = f"{self.base_url}/BusinessPartners"
+        pins: Dict[str, str] = {}
+
+        for start in range(0, len(wanted), self.BP_LOOKUP_CHUNK_SIZE):
+            chunk = wanted[start:start + self.BP_LOOKUP_CHUNK_SIZE]
+            # A quote in a CardCode would break out of the OData literal. B1 does not
+            # permit one, so skipping such a code is safer than escaping it.
+            clauses = " or ".join(f"CardCode eq '{code}'" for code in chunk if "'" not in code)
+            if not clauses:
+                continue
+            params = {"$select": "CardCode,FederalTaxID", "$filter": clauses}
+            try:
+                response = self._execute_request_with_retry(
+                    "GET", url, params=params, cookies=self.cookies
+                )
+                if response.status_code != 200:
+                    logger.warning(
+                        f"[ReconciliationSession: {reconciliation_session_id}] BusinessPartners PIN lookup "
+                        f"returned HTTP {response.status_code} for {len(chunk)} partner(s); "
+                        f"those PINs stay empty."
+                    )
+                    continue
+                for partner in response.json().get("value", []) or []:
+                    code = str(partner.get("CardCode") or "").strip()
+                    pin = str(partner.get("FederalTaxID") or "").strip()
+                    if code and pin:
+                        pins[code] = pin
+            except Exception as exc:
+                logger.warning(
+                    f"[ReconciliationSession: {reconciliation_session_id}] BusinessPartners PIN lookup "
+                    f"failed for {len(chunk)} partner(s): {exc}; those PINs stay empty."
+                )
+                continue
+
+        return pins
+
     def get_documents_pages(
         self,
         from_date: str,
@@ -197,7 +260,9 @@ class SAPClient:
         # Try optimizing with $select if supported. Falling back if query returns HTTP 400.
         # cu_field is the configured SAP field holding the CU number (U_CUINV for sales,
         # configurable for purchases) so we only fetch what we need.
-        select_str = f"FederalTaxID,CardName,DocNum,DocDate,{cu_field},DocumentLines,DocumentSubType"
+        # CardCode is needed to fall back to the Business Partner master when the document
+        # itself carries no FederalTaxID — see get_business_partner_pins().
+        select_str = f"CardCode,FederalTaxID,CardName,DocNum,DocDate,{cu_field},DocumentLines,DocumentSubType"
         params_with_select = {**params, "$select": select_str}
 
         url = f"{self.base_url}/{endpoint_name}"

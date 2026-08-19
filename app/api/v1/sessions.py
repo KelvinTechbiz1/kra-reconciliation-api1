@@ -109,7 +109,7 @@ def get_session_reconciliation_results(
                 partner_name=r.sap_partner_name or "",
                 invoice_number=r.sap_invoice_number or "",
                 invoice_date=r.sap_invoice_date,
-                cu_number=r.cu_number,
+                cu_number=r.sap_cu_number or r.cu_number,
                 vat_group=r.sap_vat_group or "",
                 base_amount=r.sap_base_amount,
                 source=InvoiceSource.SAP
@@ -122,7 +122,7 @@ def get_session_reconciliation_results(
                 partner_name=r.kra_partner_name or "",
                 invoice_number=r.kra_invoice_number or "",
                 invoice_date=r.kra_invoice_date,
-                cu_number=r.cu_number,
+                cu_number=r.kra_cu_number or r.cu_number,
                 vat_group=r.kra_vat_group or "",
                 base_amount=r.kra_base_amount,
                 source=InvoiceSource.KRA

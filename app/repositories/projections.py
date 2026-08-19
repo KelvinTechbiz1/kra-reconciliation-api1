@@ -27,6 +27,7 @@ class ReconciliationProjection:
     sap_invoice_date:    date | None
     sap_base_amount:     Decimal | None
     sap_vat_group:       str | None
+    sap_cu_number:       str | None = None
     sap_base_16:          Decimal | None = None
     sap_base_8:           Decimal | None = None
     sap_base_0:           Decimal | None = None
@@ -38,6 +39,7 @@ class ReconciliationProjection:
     kra_invoice_date:    date | None = None
     kra_base_amount:     Decimal | None = None
     kra_vat_group:       str | None = None
+    kra_cu_number:       str | None = None
     kra_base_16:          Decimal | None = None
     kra_base_8:          Decimal | None = None
     kra_base_0:          Decimal | None = None

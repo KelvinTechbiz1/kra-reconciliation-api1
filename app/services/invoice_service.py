@@ -12,6 +12,56 @@ from app.services.normalization import normalize_invoice_data
 logger = logging.getLogger(__name__)
 
 
+def _backfill_pins_from_business_partners(
+    sap_client_clone: SAPClient,
+    raw_page: list[dict],
+    pin_cache: dict[str, str],
+    reconciliation_session_id: str,
+) -> int:
+    """Fills in FederalTaxID from the BP master for documents that carry none.
+
+    SAP copies FederalTaxID onto a marketing document when it is posted, so a PIN added
+    to the business partner later never appears on earlier invoices — and the row then
+    reconciles as a PIN Mismatch against a KRA record that does have the PIN.
+
+    `pin_cache` is shared across pages so each CardCode is looked up at most once per
+    load; codes with no PIN are cached as "" so misses are not retried either.
+    Returns the number of documents actually filled in.
+    """
+    def document_pin(doc: dict) -> str:
+        return str(doc.get("FederalTaxID") or "").strip()
+
+    def card_code(doc: dict) -> str:
+        return str(doc.get("CardCode") or "").strip()
+
+    needed = {card_code(doc) for doc in raw_page if not document_pin(doc) and card_code(doc)}
+    unknown = sorted(needed - pin_cache.keys())
+    if unknown:
+        try:
+            pin_cache.update(
+                sap_client_clone.get_business_partner_pins(unknown, reconciliation_session_id)
+            )
+        except Exception as exc:
+            # A supplementary lookup must never fail the reconciliation; the affected
+            # rows simply keep the empty PIN they already had.
+            logger.warning(
+                f"[ReconciliationSession: {reconciliation_session_id}] Business Partner PIN lookup "
+                f"failed for {len(unknown)} partner(s): {exc}; those PINs stay empty."
+            )
+        for code in unknown:
+            pin_cache.setdefault(code, "")
+
+    filled = 0
+    for doc in raw_page:
+        if document_pin(doc):
+            continue
+        resolved = pin_cache.get(card_code(doc), "")
+        if resolved:
+            doc["FederalTaxID"] = resolved
+            filled += 1
+    return filled
+
+
 def _fetch_endpoint_invoices(
     sap_client_clone: SAPClient,
     endpoint_name: str,
@@ -41,9 +91,15 @@ def _fetch_endpoint_invoices(
         cu_field=cu_field,
     )
 
+    bp_pin_cache: dict[str, str] = {}
+    pins_backfilled = 0
+
     for raw_page in raw_pages:
         page_count += 1
         raw_doc_count += len(raw_page)
+        pins_backfilled += _backfill_pins_from_business_partners(
+            sap_client_clone, raw_page, bp_pin_cache, reconciliation_session_id
+        )
         for raw_doc in raw_page:
             try:
                 canonical_rows = map_sap_document_to_canonical_rows(
@@ -85,6 +141,11 @@ def _fetch_endpoint_invoices(
 
     elapsed = time.perf_counter() - start_time
     avg_page_time = (elapsed / page_count) if page_count > 0 else 0.0
+    if pins_backfilled:
+        logger.info(
+            f"[ReconciliationSession: {reconciliation_session_id}] {endpoint_name}: recovered PINs from the "
+            f"Business Partner master for {pins_backfilled} document(s) whose FederalTaxID was empty."
+        )
     logger.info(
         f"[ReconciliationSession: {reconciliation_session_id}] {endpoint_name} ({source_doc_type}) metrics: "
         f"Pages: {page_count}, Documents: {raw_doc_count}, Reconciliation Rows: {len(endpoint_invoices)}, "
