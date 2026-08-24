@@ -28,6 +28,9 @@ class Invoice(BaseModel):
     base_amount: Optional[Decimal] = None
     source: InvoiceSource
     provider: Optional[str] = None
+    # Set for KRA rows so an individual upload can be removed again. Not part of any
+    # comparison — purely provenance.
+    source_filename: Optional[str] = None
 
 
     @field_serializer("base_amount")
@@ -89,6 +92,16 @@ class MultipleInvoiceUploadResponse(BaseModel):
     added: int = 0
     duplicates_skipped: int = 0
     total_kra_records: int = 0
+
+
+class KRAFileRemovalResponse(BaseModel):
+    session_id: str
+    filename: str
+    """Rows deleted. Zero is legitimate: a file that failed to parse, or one whose rows
+    were all duplicates of an earlier upload, contributed none."""
+    removed: int
+    total_kra_records: int
+    remaining_files: list[str]
 
 
 class PaginatedInvoicesResponse(BaseModel):

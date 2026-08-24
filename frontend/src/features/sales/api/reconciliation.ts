@@ -84,6 +84,32 @@ export async function uploadInvoicesCSV(
   return res.json();
 }
 
+export interface KRAFileRemovalResponse {
+  session_id: string;
+  filename: string;
+  /** Rows deleted. Zero is legitimate — a file that failed to parse contributed none. */
+  removed: number;
+  total_kra_records: number;
+  /** Files the session still holds, per the server. */
+  remaining_files: string[];
+}
+
+/** Drop one uploaded KRA CSV from the session without abandoning the whole session. */
+export async function removeKraFile(
+  type: "sales" | "purchases",
+  sessionId: string,
+  filename: string
+): Promise<KRAFileRemovalResponse> {
+  const params = new URLSearchParams({ session_id: sessionId, filename });
+  const res = await fetchWithAuth(`/${type}/upload?${params}`, { method: "DELETE" });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || "Failed to remove KRA CSV");
+  }
+  return res.json();
+}
+
 export async function compareInvoices(sessionId: string): Promise<ReconciliationResponse> {
   const res = await fetchWithAuth(`/reconciliation/compare`, {
     method: "POST",

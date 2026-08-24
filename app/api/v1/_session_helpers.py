@@ -4,7 +4,11 @@ from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.models.reconciliation_session import ReconciliationSession, SessionInvoice
+from app.models.reconciliation_session import (
+    ReconciliationSession,
+    SessionInvoice,
+    SessionReconciliationResult,
+)
 from app.schemas.invoice import (
     Invoice,
     InvoiceSource,
@@ -53,6 +57,7 @@ def _save_invoices(
             cu_number=inv.cu_number,
             vat_group=inv.vat_group,
             base_amount=inv.base_amount,
+            source_filename=inv.source_filename,
         )
         for idx, inv in enumerate(invoices)
     ]
@@ -203,6 +208,87 @@ def upload_kra_csvs(
         "duplicates_skipped": duplicates,
         "total_kra_records": total_kra,
         "invoices": new_invoices[:100],
+    }
+
+
+def remove_kra_file(
+    db: Session,
+    current_user,
+    reconciliation_type: ReconciliationType,
+    session_id: str,
+    filename: str,
+):
+    """Delete the KRA rows one upload contributed, leaving the rest of the session intact.
+
+    Uploading the wrong CSV used to be unrecoverable without reloading the page and
+    starting over, because KRA uploads append and nothing tracked which rows came from
+    which file.
+
+    Rows are matched on `source_filename`. A row that a later file repeated verbatim was
+    skipped as a duplicate at upload time, so it is attributed to — and removed with —
+    the first file that carried it; re-upload the file that still needs it.
+    """
+    from app.core.dependencies import get_active_session
+
+    session = get_active_session(session_id=session_id, db=db, current_user=current_user)
+    if session.session_type != reconciliation_type:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Active session type is not for {reconciliation_type.value.capitalize()} reconciliation.",
+        )
+
+    name = (filename or "").strip()
+    if not name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A filename is required.",
+        )
+
+    removed = (
+        db.query(SessionInvoice)
+        .filter(
+            SessionInvoice.session_id == session.id,
+            SessionInvoice.source == InvoiceSource.KRA,
+            SessionInvoice.source_filename == name,
+        )
+        .delete(synchronize_session=False)
+    )
+
+    if removed:
+        # Any cached comparison described the rows that just went away.
+        session.is_compared = False
+        session.comparison_results = None
+        db.query(SessionReconciliationResult).filter(
+            SessionReconciliationResult.session_id == session.id
+        ).delete(synchronize_session=False)
+
+    db.commit()
+
+    total_kra = db.query(SessionInvoice).filter(
+        SessionInvoice.session_id == session.id,
+        SessionInvoice.source == InvoiceSource.KRA,
+    ).count()
+
+    # Authoritative list of what the session still holds, so the UI's tags cannot drift
+    # out of step with the database.
+    remaining = [
+        row[0]
+        for row in db.query(SessionInvoice.source_filename)
+        .filter(
+            SessionInvoice.session_id == session.id,
+            SessionInvoice.source == InvoiceSource.KRA,
+            SessionInvoice.source_filename.isnot(None),
+        )
+        .distinct()
+        .order_by(SessionInvoice.source_filename)
+    ]
+
+    return {
+        "session_id": session.id,
+        "filename": name,
+        "removed": removed,
+        "total_kra_records": total_kra,
+        "remaining_files": remaining,
     }
 
 

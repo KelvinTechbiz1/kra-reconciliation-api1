@@ -6,6 +6,7 @@ import { Invoice, ReconciliationResult, ReconciliationSummary } from "../types";
 import {
   fetchInvoicesPreview,
   uploadInvoicesCSV,
+  removeKraFile,
   uploadErpInvoices,
   compareInvoices,
   fetchInvoicesPage,
@@ -22,6 +23,9 @@ export function useWorkspace(type: "sales" | "purchases") {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [fileStatuses, setFileStatuses] = useState<FileUploadStatus[]>([]);
+  // Filenames with a delete in flight, so their tag can show a spinner and refuse a
+  // second click.
+  const [removingFiles, setRemovingFiles] = useState<string[]>([]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -212,6 +216,57 @@ export function useWorkspace(type: "sales" | "purchases") {
     }
   };
 
+  // Undo one upload. Uploading the wrong CSV used to mean reloading the page and
+  // re-fetching SAP, because uploads append and nothing could take a single file back out.
+  const handleRemoveKraFile = async (filename: string) => {
+    if (!sessionId || removingFiles.includes(filename)) return;
+
+    setRemovingFiles(prev => [...prev, filename]);
+    setGlobalError(null);
+
+    try {
+      const res = await removeKraFile(type, sessionId, filename);
+
+      setFileStatuses(prev => prev.filter(f => f.filename !== filename));
+
+      // The removed rows may have taken part in a comparison, which the server has just
+      // invalidated. Drop what the results view is holding rather than leave it showing
+      // totals for rows that no longer exist.
+      setSummary(null);
+      resultsPagination.reset();
+      setResultsFilter("All");
+      setResultStatusCounts({});
+      setResultsSort({ field: null, order: "asc" });
+
+      if (res.total_kra_records === 0) {
+        kraPagination.reset();
+        setUiState(prev => ({
+          ...prev,
+          kra: { status: AsyncStatus.Idle },
+          comparison: { status: AsyncStatus.Idle },
+        }));
+      } else {
+        const firstPage = await fetchKraPage(1, 100);
+        kraPagination.reset(firstPage.items, firstPage.total, firstPage.total_pages);
+        setUiState(prev => ({
+          ...prev,
+          kra: { status: AsyncStatus.Loaded },
+          comparison: { status: AsyncStatus.Idle },
+        }));
+      }
+
+      notify(`Removed ${filename}`, "success");
+    } catch (err: unknown) {
+      // The tag stays put on failure — the rows are still in the session.
+      notify(
+        err instanceof Error ? err.message : `Failed to remove ${filename}`,
+        "error"
+      );
+    } finally {
+      setRemovingFiles(prev => prev.filter(f => f !== filename));
+    }
+  };
+
   const handleCompare = async (): Promise<boolean> => {
     if (!sessionId) return false;
     
@@ -258,6 +313,7 @@ export function useWorkspace(type: "sales" | "purchases") {
     kraPagination.reset();
     resultsPagination.reset();
     setFileStatuses([]);
+    setRemovingFiles([]);
     setFromDate("");
     setToDate("");
     setGlobalError(null);
@@ -305,6 +361,8 @@ export function useWorkspace(type: "sales" | "purchases") {
     handleLoadSap,
     handleLoadErpFile,
     handleFileUpload,
+    handleRemoveKraFile,
+    removingFiles,
     handleCompare,
     resetState,
 

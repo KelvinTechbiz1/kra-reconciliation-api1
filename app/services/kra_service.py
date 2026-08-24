@@ -292,6 +292,10 @@ def parse_multiple_kra_csvs(
             )
             continue
 
+        # Stamp provenance so a single mistaken upload can be removed from the session
+        # without discarding the sections that parsed correctly.
+        for invoice in upload_res.invoices:
+            invoice.source_filename = upload_res.filename
         all_invoices.extend(upload_res.invoices)
         file_statuses.append(
             FileUploadStatus(

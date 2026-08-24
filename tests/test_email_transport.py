@@ -150,3 +150,64 @@ def test_missing_password_still_short_circuits(monkeypatch):
     _configure(monkeypatch, MAIL_PASSWORD="", MAIL_MAILER="sendgrid_api")
     monkeypatch.setattr("httpx.post", lambda *a, **kw: pytest.fail("should not have sent"))
     assert email_service.send_email("her@example.com", "s", "<p>h</p>") is True
+
+
+# --------------------------------------------------------------------------- #
+# The forgot-password flow rides the same transport
+# --------------------------------------------------------------------------- #
+
+def test_forgot_password_sends_over_https_when_selected(monkeypatch, tmp_path):
+    """Every mail in the app funnels through send_email, so selecting the API
+    transport fixes forgot-password and the admin reset mail at the same time."""
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app.core.security import hash_password
+    from app.database.base import Base
+    from app.database.database import get_db
+    from app.main import app
+    from app.models.user import User
+
+    engine = create_engine(
+        f"sqlite:///{tmp_path}/forgot.db", connect_args={"check_same_thread": False}
+    )
+    Session = sessionmaker(bind=engine)
+    Base.metadata.create_all(engine)
+    db = Session()
+    db.add(User(
+        username="aquila", email="treasury@example.com", full_name="Aquila",
+        password_hash=hash_password("x"), is_active=True, role="checker",
+    ))
+    db.commit()
+
+    _configure(monkeypatch, MAIL_MAILER="sendgrid_api",
+               FRONTEND_URL="https://app.ushurulens.techbizafrica.com")
+
+    posted = {}
+    monkeypatch.setattr(
+        "httpx.post",
+        lambda url, json=None, headers=None, timeout=None: (
+            posted.update(url=url, json=json) or _Response()
+        ),
+    )
+    monkeypatch.setattr(
+        "smtplib.SMTP", lambda *a, **kw: pytest.fail("SMTP is blocked in prod; must not be used")
+    )
+
+    app.dependency_overrides[get_db] = lambda: (yield db)
+    try:
+        with TestClient(app) as client:
+            res = client.post(
+                "/api/v1/auth/forgot-password", json={"identifier": "treasury@example.com"}
+            )
+        assert res.status_code == 200
+    finally:
+        app.dependency_overrides.clear()
+        db.close()
+
+    assert posted["url"] == email_service.SENDGRID_API_URL
+    assert posted["json"]["personalizations"][0]["to"][0]["email"] == "treasury@example.com"
+    # The link must point at the deployed frontend, not the localhost default.
+    assert "https://app.ushurulens.techbizafrica.com/reset-password?token=" in \
+        posted["json"]["content"][0]["value"]

@@ -59,6 +59,12 @@ class SessionInvoice(Base):
     vat_group: Mapped[str] = mapped_column(String(50), nullable=False)
     base_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
 
+    # Which upload a KRA row came from, so a single mistaken CSV can be removed without
+    # discarding the whole session. NULL for SAP/ERP rows and for KRA rows stored before
+    # this column existed; the delete path treats a filename that matches nothing as an
+    # error rather than silently dropping the tag.
+    source_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     session: Mapped["ReconciliationSession"] = relationship("ReconciliationSession", back_populates="invoices")
 
 
@@ -67,6 +73,7 @@ class SessionInvoice(Base):
         Index("ix_session_invoices_session_id", "session_id"),
         Index("ix_session_invoices_session_source_row", "session_id", "source", "row_number"),
         Index("ix_session_invoices_session_cu", "session_id", "cu_number"),
+        Index("ix_session_invoices_session_source_file", "session_id", "source", "source_filename"),
     )
 
 

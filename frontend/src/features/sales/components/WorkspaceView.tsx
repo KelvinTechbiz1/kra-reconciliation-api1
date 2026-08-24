@@ -16,6 +16,7 @@ import {
   FileText,
   Calendar,
   GitCompareArrows,
+  X,
 } from "lucide-react";
 
 import { ImportProfile } from "@/types/import_profile";
@@ -41,6 +42,9 @@ interface WorkspaceViewProps {
   handleLoadSap: () => void;
   handleLoadErpFile?: (files: File[], profileId?: number | null) => void;
   handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleRemoveKraFile: (filename: string) => void;
+  /** Filenames with a removal in flight. */
+  removingFiles: string[];
   handleCompare: () => void;
   sapPagination: PaginationData<Invoice>;
   kraPagination: PaginationData<Invoice>;
@@ -81,6 +85,8 @@ export function WorkspaceView({
   handleLoadSap,
   handleLoadErpFile,
   handleFileUpload,
+  handleRemoveKraFile,
+  removingFiles,
   handleCompare,
   sapPagination,
   kraPagination,
@@ -346,14 +352,16 @@ export function WorkspaceView({
                   // wear a green tick — that is how whole sections went missing unnoticed.
                   const failed = f.parsed === 0;
                   const partial = !failed && f.errors_count > 0;
+                  const removing = removingFiles.includes(f.filename);
                   return (
                     <div
                       key={idx}
-                      className={`inline-flex items-center gap-1.5 border rounded-full px-2.5 py-1 text-[11px] font-medium max-w-[240px] ${failed
-                        ? "bg-red-50 border-red-200 text-red-700"
-                        : partial
-                          ? "bg-amber-50 border-amber-200 text-amber-800"
-                          : "bg-slate-50 border-slate-200 text-slate-700"
+                      className={`inline-flex items-center gap-1.5 border rounded-full pl-2.5 pr-1 py-1 text-[11px] font-medium max-w-[260px] transition-opacity ${removing ? "opacity-50" : ""
+                        } ${failed
+                          ? "bg-red-50 border-red-200 text-red-700"
+                          : partial
+                            ? "bg-amber-50 border-amber-200 text-amber-800"
+                            : "bg-slate-50 border-slate-200 text-slate-700"
                         }`}
                       title={
                         failed || partial
@@ -368,6 +376,25 @@ export function WorkspaceView({
                       <span className="font-bold shrink-0">
                         {failed ? "not imported" : partial ? `·${f.parsed}/${f.rows}` : `·${f.parsed}`}
                       </span>
+                      {/* Takes this file's rows back out of the session. Uploading the
+                          wrong CSV used to need a full page reload to undo. */}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveKraFile(f.filename)}
+                        disabled={removing}
+                        aria-label={`Remove ${f.filename}`}
+                        title={`Remove ${f.filename}`}
+                        className={`shrink-0 w-4 h-4 rounded-full flex items-center justify-center transition-colors cursor-pointer disabled:cursor-not-allowed ${failed
+                          ? "hover:bg-red-200/70 text-red-500 hover:text-red-700"
+                          : partial
+                            ? "hover:bg-amber-200/70 text-amber-600 hover:text-amber-800"
+                            : "hover:bg-slate-200 text-slate-400 hover:text-slate-700"
+                          }`}
+                      >
+                        {removing
+                          ? <LoaderCircle className="w-3 h-3 animate-spin" />
+                          : <X className="w-3 h-3" />}
+                      </button>
                     </div>
                   );
                 })}

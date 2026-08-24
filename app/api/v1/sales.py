@@ -1,13 +1,18 @@
 from datetime import date
 from fastapi import APIRouter, Depends, Query, UploadFile
 
-from app.api.v1._session_helpers import load_sap_invoices, upload_kra_csvs
+from app.api.v1._session_helpers import (
+    load_sap_invoices,
+    remove_kra_file,
+    upload_kra_csvs,
+)
 from app.core.dependencies import get_company_sap_client, get_current_user, get_db
 from app.core.sap_client import SAPClient
 from app.models.user import User
 from app.schemas.invoice import (
     ReconciliationType,
     InvoiceFetchResponse,
+    KRAFileRemovalResponse,
     MultipleInvoiceUploadResponse,
 )
 
@@ -40,6 +45,20 @@ def upload_sales_csv(
     Upload multiple KRA CSV files containing sales invoices. Normalizes and appends records to the active session.
     """
     return upload_kra_csvs(db, current_user, ReconciliationType.SALES, files, session_id)
+
+
+@router.delete("/upload", response_model=KRAFileRemovalResponse)
+def remove_sales_csv(
+    filename: str = Query(..., description="Name of the uploaded KRA CSV to remove"),
+    session_id: str = Query(..., description="Active reconciliation session ID"),
+    current_user: User = Depends(get_current_user),
+    db=Depends(get_db),
+) -> KRAFileRemovalResponse:
+    """
+    Remove one previously uploaded KRA CSV from the active session, so a mistaken upload
+    can be undone without reloading the page and re-fetching sales data.
+    """
+    return remove_kra_file(db, current_user, ReconciliationType.SALES, session_id, filename)
 
 
 @router.post("/upload-erp")
