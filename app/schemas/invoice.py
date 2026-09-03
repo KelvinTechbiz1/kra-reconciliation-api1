@@ -56,7 +56,10 @@ class Invoice(BaseModel):
 class InvoiceFetchResponse(BaseModel):
     session_id: str
     source: str
+    """Rows this call added. Smaller than the session total when a long date range is
+    loaded as a series of windows."""
     count: int
+    total_sap_records: int = 0
     from_date: date
     to_date: date
     invoices: list[Invoice]

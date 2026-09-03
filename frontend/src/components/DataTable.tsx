@@ -20,6 +20,8 @@ interface DataTableProps<T> {
   hasMore?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
+  /** Shown in the footer row while more data is still being fetched into the table. */
+  loadingMoreLabel?: string;
 }
 
 export function DataTable<T>({ 
@@ -32,6 +34,7 @@ export function DataTable<T>({
   hasMore = false,
   isLoadingMore = false,
   onLoadMore,
+  loadingMoreLabel = "Loading more records...",
 }: DataTableProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -64,6 +67,12 @@ export function DataTable<T>({
     }
   };
   
+  // Rows already fetched stay on screen while more are still arriving. Skeletons are
+  // only honest before anything has landed; once the table holds data, replacing it with
+  // placeholders hides work that is already done.
+  const isStreaming = asyncState.status === AsyncStatus.Loading && data.length > 0;
+  const showRows = asyncState.status === AsyncStatus.Loaded || isStreaming;
+
   return (
     <div className={`flex flex-col relative w-full h-full ${className}`}>
       <div ref={containerRef} onScroll={handleScroll} className="overflow-auto flex-1 relative">
@@ -78,7 +87,7 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {asyncState.status === AsyncStatus.Loading && (
+            {asyncState.status === AsyncStatus.Loading && data.length === 0 && (
               <>
                 {[...Array(5)].map((_, i) => (
                   <tr key={`skeleton-${i}`} className="animate-pulse transition-opacity duration-200">
@@ -92,7 +101,7 @@ export function DataTable<T>({
               </>
             )}
 
-            {asyncState.status === AsyncStatus.Loaded && data.length > 0 && (
+            {showRows && data.length > 0 && (
               <>
                 {data.map((row, idx) => (
                   <tr key={idx} className="hover:bg-slate-50 transition-colors animate-fade-in">
@@ -104,12 +113,12 @@ export function DataTable<T>({
                   </tr>
                 ))}
 
-                {isLoadingMore && (
+                {(isLoadingMore || isStreaming) && (
                   <tr key="loading-more-indicator">
                     <td colSpan={columns.length} className="py-3 text-center text-xs text-slate-500 bg-slate-50/60">
                       <div className="inline-flex items-center justify-center gap-2 font-medium">
                         <Loader2 className="w-3.5 h-3.5 animate-spin text-[#0e1734]" />
-                        Loading more records...
+                        {isStreaming ? loadingMoreLabel : "Loading more records..."}
                       </div>
                     </td>
                   </tr>

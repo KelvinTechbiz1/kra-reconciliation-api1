@@ -18,7 +18,7 @@ export function ReconciliationWorkspace({ type }: ReconciliationWorkspaceProps) 
   const {
     fromDate, setFromDate, toDate, setToDate, fileStatuses, fileInputRef,
     uiState, summary, globalError, handleLoadSap, handleLoadErpFile, handleFileUpload,
-    handleRemoveKraFile, removingFiles,
+    handleRemoveKraFile, removingFiles, sapProgress,
     handleCompare: triggerCompare,
     sapPagination, kraPagination, resultsPagination,
     resultsFilter, setResultsFilter, resultStatusCounts, resultsSort, toggleResultsSort,
@@ -69,6 +69,7 @@ export function ReconciliationWorkspace({ type }: ReconciliationWorkspaceProps) 
           handleFileUpload={handleFileUpload}
           handleRemoveKraFile={handleRemoveKraFile}
           removingFiles={removingFiles}
+          sapProgress={sapProgress}
           handleCompare={handleCompareWithNavigation}
           sapPagination={sapPagination}
           kraPagination={kraPagination}

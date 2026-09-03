@@ -4,7 +4,7 @@ import React from "react";
 import { WorkflowStep, AsyncStatus, WorkspaceUIState } from "../workspace/types";
 import { DataTable, Column } from "@/components/DataTable";
 import { Invoice } from "../types";
-import { FileUploadStatus } from "../api/reconciliation";
+import { KraFileTag } from "../api/reconciliation";
 import {
   Database,
   FileSpreadsheet,
@@ -36,7 +36,7 @@ interface WorkspaceViewProps {
   setFromDate: (v: string) => void;
   toDate: string;
   setToDate: (v: string) => void;
-  fileStatuses: FileUploadStatus[];
+  fileStatuses: KraFileTag[];
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   uiState: WorkspaceUIState;
   handleLoadSap: () => void;
@@ -45,6 +45,8 @@ interface WorkspaceViewProps {
   handleRemoveKraFile: (filename: string) => void;
   /** Filenames with a removal in flight. */
   removingFiles: string[];
+  /** Windows completed out of total, while a long SAP range is loading. */
+  sapProgress?: { done: number; total: number } | null;
   handleCompare: () => void;
   sapPagination: PaginationData<Invoice>;
   kraPagination: PaginationData<Invoice>;
@@ -87,6 +89,7 @@ export function WorkspaceView({
   handleFileUpload,
   handleRemoveKraFile,
   removingFiles,
+  sapProgress,
   handleCompare,
   sapPagination,
   kraPagination,
@@ -95,6 +98,8 @@ export function WorkspaceView({
 }: WorkspaceViewProps) {
   const sapLoaded = uiState.sap.status === AsyncStatus.Loaded;
   const kraLoaded = uiState.kra.status === AsyncStatus.Loaded;
+  const sapLoading = uiState.sap.status === AsyncStatus.Loading;
+  const pendingFiles = fileStatuses.filter(f => f.pending).length;
 
   const [erpSourceMode, setErpSourceMode] = React.useState<"sap" | "file">("sap");
   const [profiles, setProfiles] = React.useState<ImportProfile[]>([]);
@@ -179,7 +184,11 @@ export function WorkspaceView({
               <div>
                 <p className="text-sm font-semibold text-slate-900">ERP Invoices Data</p>
                 <p className="text-[11px] text-slate-400 leading-none mt-0.5">
-                  {sapLoaded ? `${sapPagination.totalItems ?? 0} invoices loaded` : "Select source & load invoices"}
+                  {sapLoading && sapProgress && sapProgress.total > 1
+                    ? `${sapPagination.totalItems ?? 0} invoices so far · window ${Math.min(sapProgress.done + 1, sapProgress.total)} of ${sapProgress.total}`
+                    : sapLoaded || (sapLoading && (sapPagination.totalItems ?? 0) > 0)
+                      ? `${sapPagination.totalItems ?? 0} invoices loaded`
+                      : "Select source & load invoices"}
                 </p>
               </div>
             </div>
@@ -308,9 +317,11 @@ export function WorkspaceView({
               <div>
                 <p className="text-sm font-semibold text-slate-900">KRA Portal CSVs</p>
                 <p className="text-[11px] text-slate-400 leading-none mt-0.5">
-                  {kraLoaded
-                    ? `${kraPagination.totalItems ?? 0} records from ${fileStatuses.length} file${fileStatuses.length !== 1 ? "s" : ""}`
-                    : "No files uploaded"}
+                  {pendingFiles > 0
+                    ? `${kraPagination.totalItems ?? 0} records · ${pendingFiles} file${pendingFiles !== 1 ? "s" : ""} to go`
+                    : kraLoaded
+                      ? `${kraPagination.totalItems ?? 0} records from ${fileStatuses.length} file${fileStatuses.length !== 1 ? "s" : ""}`
+                      : "No files uploaded"}
                 </p>
               </div>
             </div>
@@ -350,8 +361,10 @@ export function WorkspaceView({
                 {fileStatuses.map((f, idx) => {
                   // A file that imported nothing, or that had row errors, must never
                   // wear a green tick — that is how whole sections went missing unnoticed.
-                  const failed = f.parsed === 0;
-                  const partial = !failed && f.errors_count > 0;
+                  // A pending file has no verdict yet and must not wear either.
+                  const pending = !!f.pending;
+                  const failed = !pending && f.parsed === 0;
+                  const partial = !pending && !failed && f.errors_count > 0;
                   const removing = removingFiles.includes(f.filename);
                   return (
                     <div
@@ -364,24 +377,28 @@ export function WorkspaceView({
                             : "bg-slate-50 border-slate-200 text-slate-700"
                         }`}
                       title={
-                        failed || partial
-                          ? `${f.filename} — ${f.parsed} of ${f.rows} rows imported. ${f.errors[0]?.message ?? ""}`
-                          : f.filename
+                        pending
+                          ? `${f.filename} — importing…`
+                          : failed || partial
+                            ? `${f.filename} — ${f.parsed} of ${f.rows} rows imported. ${f.errors[0]?.message ?? ""}`
+                            : f.filename
                       }
                     >
-                      {failed || partial
-                        ? <AlertTriangle className={`w-3 h-3 shrink-0 ${failed ? "text-red-500" : "text-amber-500"}`} />
-                        : <CheckCircle2 className="w-3 h-3 text-slate-400 shrink-0" />}
+                      {pending
+                        ? <LoaderCircle className="w-3 h-3 text-slate-400 shrink-0 animate-spin" />
+                        : failed || partial
+                          ? <AlertTriangle className={`w-3 h-3 shrink-0 ${failed ? "text-red-500" : "text-amber-500"}`} />
+                          : <CheckCircle2 className="w-3 h-3 text-slate-400 shrink-0" />}
                       <span className="truncate">{f.filename}</span>
                       <span className="font-bold shrink-0">
-                        {failed ? "not imported" : partial ? `·${f.parsed}/${f.rows}` : `·${f.parsed}`}
+                        {pending ? "·importing" : failed ? "not imported" : partial ? `·${f.parsed}/${f.rows}` : `·${f.parsed}`}
                       </span>
                       {/* Takes this file's rows back out of the session. Uploading the
                           wrong CSV used to need a full page reload to undo. */}
                       <button
                         type="button"
                         onClick={() => handleRemoveKraFile(f.filename)}
-                        disabled={removing}
+                        disabled={removing || pending}
                         aria-label={`Remove ${f.filename}`}
                         title={`Remove ${f.filename}`}
                         className={`shrink-0 w-4 h-4 rounded-full flex items-center justify-center transition-colors cursor-pointer disabled:cursor-not-allowed ${failed
@@ -441,7 +458,7 @@ export function WorkspaceView({
               <Database className="w-3.5 h-3.5 text-slate-400" />
               SAP Data Preview
             </h3>
-            {sapLoaded && (
+            {(sapLoaded || (sapPagination.totalItems ?? 0) > 0) && (
               <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                 {sapPagination.totalItems} invoices
               </span>
@@ -455,6 +472,11 @@ export function WorkspaceView({
               hasMore={sapPagination.hasMore}
               isLoadingMore={sapPagination.isLoadingMore}
               onLoadMore={sapPagination.loadNextPage}
+              loadingMoreLabel={
+                sapProgress && sapProgress.total > 1
+                  ? `Loading window ${Math.min(sapProgress.done + 1, sapProgress.total)} of ${sapProgress.total}...`
+                  : "Loading SAP invoices..."
+              }
               emptyState={
                 <div className="flex flex-col items-center gap-3 py-12">
                   <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center">
@@ -486,7 +508,7 @@ export function WorkspaceView({
               <FileSpreadsheet className="w-3.5 h-3.5 text-slate-400" />
               KRA CSV Preview
             </h3>
-            {kraLoaded && (
+            {(kraLoaded || (kraPagination.totalItems ?? 0) > 0) && (
               <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                 {kraPagination.totalItems} records
               </span>
@@ -500,6 +522,11 @@ export function WorkspaceView({
               hasMore={kraPagination.hasMore}
               isLoadingMore={kraPagination.isLoadingMore}
               onLoadMore={kraPagination.loadNextPage}
+              loadingMoreLabel={
+                pendingFiles > 0
+                  ? `Importing ${pendingFiles} more file${pendingFiles !== 1 ? "s" : ""}...`
+                  : "Importing KRA CSVs..."
+              }
               emptyState={
                 <div className="flex flex-col items-center gap-3 py-12">
                   <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center">

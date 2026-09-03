@@ -65,6 +65,29 @@ def _save_invoices(
     db.commit()
 
 
+def _sap_dedupe_keys(db: Session, session_id: str) -> set:
+    """Content keys of the SAP rows a session already holds.
+
+    Only the key columns are selected: an append runs once per window and the row
+    count can reach five figures, so materializing whole ORM entities to compare six
+    fields would be wasteful.
+    """
+    return {
+        row
+        for row in db.query(
+            SessionInvoice.pin,
+            SessionInvoice.invoice_number,
+            SessionInvoice.invoice_date,
+            SessionInvoice.cu_number,
+            SessionInvoice.vat_group,
+            SessionInvoice.base_amount,
+        ).filter(
+            SessionInvoice.session_id == session_id,
+            SessionInvoice.source == InvoiceSource.SAP,
+        )
+    }
+
+
 def load_sap_invoices(
     db: Session,
     current_user,
@@ -72,31 +95,51 @@ def load_sap_invoices(
     reconciliation_type: ReconciliationType,
     from_date: date,
     to_date: date,
+    session_id: str | None = None,
 ):
-    """Fetch SAP invoices for a date range, create a session, and persist them."""
-    expiry_time = datetime.now(timezone.utc) - timedelta(minutes=SESSION_EXPIRY_MINUTES)
-    db.query(ReconciliationSession).filter(
-        ReconciliationSession.user_id == current_user.id,
-        ReconciliationSession.last_accessed_at < expiry_time,
-    ).delete()
-    db.commit()
+    """Fetch SAP invoices for a date range, and persist them to a session.
 
-    company_id = current_user.company_id
-    if company_id is None:
-        from app.models.company import Company
-        comp = db.query(Company).order_by(Company.id.asc()).first()
-        company_id = comp.id if comp else None
+    Without `session_id` this creates a new session, which is the normal first call.
 
-    session = ReconciliationSession(
-        company_id=company_id,
-        user_id=current_user.id,
-        from_date=from_date,
-        to_date=to_date,
-        session_type=reconciliation_type,
-        is_compared=False,
-    )
-    db.add(session)
-    db.commit()
+    With one, the rows are appended to that session instead. The UI uses this to load a
+    long date range as a series of shorter windows, so the table fills as each window
+    returns rather than staying blank until the whole range has been fetched. The
+    session's own date range widens to cover everything loaded into it.
+    """
+    from app.core.dependencies import get_active_session
+
+    if session_id:
+        session = get_active_session(session_id=session_id, db=db, current_user=current_user)
+        if session.session_type != reconciliation_type:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Active session type is not for {reconciliation_type.value.capitalize()} reconciliation.",
+            )
+        company_id = session.company_id or current_user.company_id
+    else:
+        expiry_time = datetime.now(timezone.utc) - timedelta(minutes=SESSION_EXPIRY_MINUTES)
+        db.query(ReconciliationSession).filter(
+            ReconciliationSession.user_id == current_user.id,
+            ReconciliationSession.last_accessed_at < expiry_time,
+        ).delete()
+        db.commit()
+
+        company_id = current_user.company_id
+        if company_id is None:
+            from app.models.company import Company
+            comp = db.query(Company).order_by(Company.id.asc()).first()
+            company_id = comp.id if comp else None
+
+        session = ReconciliationSession(
+            company_id=company_id,
+            user_id=current_user.id,
+            from_date=from_date,
+            to_date=to_date,
+            session_type=reconciliation_type,
+            is_compared=False,
+        )
+        db.add(session)
+        db.commit()
 
     system_setting = SettingsService.get_or_create_company_settings(db, company_id)
 
@@ -121,14 +164,45 @@ def load_sap_invoices(
         unmapped_vat_policy=system_setting.unmapped_vat_policy,
     )
 
-    _save_invoices(db, session.id, invoices, InvoiceSource.SAP)
+    if session_id:
+        # Windows are contiguous and disjoint, so this should never fire. It is here
+        # because a duplicated SAP row does not announce itself — it silently doubles an
+        # amount and turns a clean reconciliation into an unexplained mismatch.
+        existing = _sap_dedupe_keys(db, session.id)
+        invoices = [
+            inv for inv in invoices
+            if (inv.pin, inv.invoice_number, inv.invoice_date, inv.cu_number,
+                inv.vat_group, inv.base_amount) not in existing
+        ]
+        # The session now spans everything loaded into it, not just this window.
+        session.from_date = min(session.from_date, from_date)
+        session.to_date = max(session.to_date, to_date)
+
+    if invoices:
+        # Any cached comparison predates these rows.
+        session.is_compared = False
+        session.comparison_results = None
+        db.query(SessionReconciliationResult).filter(
+            SessionReconciliationResult.session_id == session.id
+        ).delete(synchronize_session=False)
+        _save_invoices(
+            db, session.id, invoices, InvoiceSource.SAP,
+            row_number_offset=_next_row_number(db, session.id, InvoiceSource.SAP),
+        )
+    db.commit()
+
+    total_sap = db.query(SessionInvoice).filter(
+        SessionInvoice.session_id == session.id,
+        SessionInvoice.source == InvoiceSource.SAP,
+    ).count()
 
     return {
         "session_id": session.id,
         "source": "SAP",
         "count": len(invoices),
-        "from_date": from_date,
-        "to_date": to_date,
+        "total_sap_records": total_sap,
+        "from_date": session.from_date,
+        "to_date": session.to_date,
         "invoices": invoices[:100],
     }
 

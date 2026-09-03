@@ -11,7 +11,10 @@ import {
 export interface InvoiceFetchResponse {
   session_id: string;
   source: string;
+  /** Rows this call added — one window's worth, not the whole range. */
   count: number;
+  /** Running total of SAP rows in the session across every window loaded so far. */
+  total_sap_records?: number;
   from_date: string;
   to_date: string;
   invoices: Invoice[];
@@ -34,6 +37,12 @@ export interface FileUploadStatus {
   errors: CSVValidationErrorDetail[];
 }
 
+/**
+ * A file tag in the workspace: either a status the server returned, or a placeholder
+ * standing in for one whose upload is still in flight.
+ */
+export type KraFileTag = FileUploadStatus & { pending?: boolean };
+
 export interface MultipleInvoiceUploadResponse {
   session_id: string;
   files: FileUploadStatus[];
@@ -51,17 +60,59 @@ export interface ReconciliationResponse {
   summary: ReconciliationSummary;
 }
 
+/**
+ * Fetch one window of SAP data. Passing `sessionId` appends to that session instead of
+ * starting a new one, which is how a long date range is loaded a piece at a time.
+ */
 export async function fetchInvoicesPreview(
   type: "sales" | "purchases",
   fromDate: string,
-  toDate: string
+  toDate: string,
+  sessionId?: string
 ): Promise<InvoiceFetchResponse> {
-  const res = await fetchWithAuth(`/${type}?from=${fromDate}&to=${toDate}`);
+  const params = new URLSearchParams({ from: fromDate, to: toDate });
+  if (sessionId) params.set("session_id", sessionId);
+
+  const res = await fetchWithAuth(`/${type}?${params}`);
   if (!res.ok) {
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     throw new Error(data.detail || "Failed to load SAP data");
   }
   return res.json();
+}
+
+/**
+ * Split a date range into contiguous windows so the table can fill as each one returns.
+ *
+ * Short ranges stay a single request: splitting them would add round trips without
+ * shortening the wait enough to notice. Both bounds are inclusive and windows never
+ * overlap, so no invoice is fetched twice.
+ */
+export function splitDateRange(
+  fromDate: string,
+  toDate: string,
+  windowDays = 7,
+  minDaysToSplit = 10
+): Array<{ from: string; to: string }> {
+  const start = new Date(`${fromDate}T00:00:00Z`);
+  const end = new Date(`${toDate}T00:00:00Z`);
+
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
+    return [{ from: fromDate, to: toDate }];
+  }
+
+  const dayMs = 86_400_000;
+  const spanDays = Math.round((end.getTime() - start.getTime()) / dayMs) + 1;
+  if (spanDays <= minDaysToSplit) return [{ from: fromDate, to: toDate }];
+
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const windows: Array<{ from: string; to: string }> = [];
+
+  for (let t = start.getTime(); t <= end.getTime(); t += windowDays * dayMs) {
+    const windowEnd = new Date(Math.min(t + (windowDays - 1) * dayMs, end.getTime()));
+    windows.push({ from: iso(new Date(t)), to: iso(windowEnd) });
+  }
+  return windows;
 }
 
 export async function uploadInvoicesCSV(

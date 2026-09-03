@@ -5,13 +5,14 @@ import { usePagination } from "@/hooks/usePagination";
 import { Invoice, ReconciliationResult, ReconciliationSummary } from "../types";
 import {
   fetchInvoicesPreview,
+  splitDateRange,
   uploadInvoicesCSV,
   removeKraFile,
   uploadErpInvoices,
   compareInvoices,
   fetchInvoicesPage,
   fetchReconciliationResultsPage,
-  FileUploadStatus
+  KraFileTag
 } from "../api/reconciliation";
 import { AsyncStatus, WorkspaceUIState } from "./types";
 import { ResultFilter, ResultSortField, ResultSortOrder } from "@/types";
@@ -22,10 +23,13 @@ export function useWorkspace(type: "sales" | "purchases") {
   const { notify } = useToast();
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [fileStatuses, setFileStatuses] = useState<FileUploadStatus[]>([]);
+  const [fileStatuses, setFileStatuses] = useState<KraFileTag[]>([]);
   // Filenames with a delete in flight, so their tag can show a spinner and refuse a
   // second click.
   const [removingFiles, setRemovingFiles] = useState<string[]>([]);
+  // How far through a windowed SAP load we are, so the card can say "3 of 5" instead of
+  // spinning silently for a minute.
+  const [sapProgress, setSapProgress] = useState<{ done: number; total: number } | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -109,13 +113,43 @@ export function useWorkspace(type: "sales" | "purchases") {
       fileInputRef.current.value = "";
     }
 
+    // A long range is fetched as a series of shorter windows, each appending to the same
+    // session, so the table fills as they land instead of staying empty until SAP has
+    // returned everything. Short ranges stay a single request.
+    const windows = splitDateRange(fromDate, toDate);
+    setSapProgress({ done: 0, total: windows.length });
+
+    // Rows held on screen. The first page of an append-only session stops changing once
+    // it is full, so it is only re-read while still short of one.
+    let held: Invoice[] = [];
+    let activeSession: string | null = null;
+
     try {
-      const data = await fetchInvoicesPreview(type, fromDate, toDate);
-      setSessionId(data.session_id);
-      
-      const totalPages = Math.ceil(data.count / 100);
-      sapPagination.reset(data.invoices, data.count, totalPages);
-      
+      for (const [index, window] of windows.entries()) {
+        const data = await fetchInvoicesPreview(
+          type, window.from, window.to, activeSession ?? undefined
+        );
+        activeSession = data.session_id;
+        setSessionId(data.session_id);
+
+        const total = data.total_sap_records ?? data.count;
+
+        if (held.length === 0) {
+          // Nothing loaded yet, so this window's own rows are the session's first page.
+          held = data.invoices;
+          sapPagination.reset(held, total, Math.ceil(total / 100));
+        } else if (held.length < Math.min(100, total)) {
+          const firstPage = await fetchInvoicesPage(data.session_id, "SAP", 1, 100);
+          held = firstPage.items;
+          sapPagination.reset(firstPage.items, firstPage.total, firstPage.total_pages);
+        } else {
+          // Page one is settled; only the running total moves.
+          sapPagination.reset(held, total, Math.ceil(total / 100));
+        }
+
+        setSapProgress({ done: index + 1, total: windows.length });
+      }
+
       setUiState(prev => ({ ...prev, sap: { status: AsyncStatus.Loaded } }));
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "An unknown error occurred loading SAP data.";
@@ -133,7 +167,22 @@ export function useWorkspace(type: "sales" | "purchases") {
         return;
       }
 
-      setUiState(prev => ({ ...prev, sap: { status: AsyncStatus.Error, error: errorMessage } }));
+      // A window that fails leaves the session holding only part of the range. Comparing
+      // against that would report every unfetched invoice as missing from SAP, so the
+      // load is failed outright rather than presented as a smaller result.
+      sapPagination.reset();
+      setSessionId(null);
+      setUiState(prev => ({
+        ...prev,
+        sap: {
+          status: AsyncStatus.Error,
+          error: windows.length > 1
+            ? `${errorMessage} (loading ${fromDate} to ${toDate}); nothing was kept — retry the load.`
+            : errorMessage,
+        },
+      }));
+    } finally {
+      setSapProgress(null);
     }
   };
 
@@ -186,29 +235,64 @@ export function useWorkspace(type: "sales" | "purchases") {
     setSummary(null);
     resultsPagination.reset();
 
-    try {
-      const data = await uploadInvoicesCSV(type, sessionId, files);
-      // Uploads append server-side, so keep the tags from earlier passes. Re-uploading
-      // a file replaces its own tag rather than showing it twice.
-      setFileStatuses(prev => [
-        ...prev.filter(p => !data.files.some(f => f.filename === p.filename)),
-        ...data.files,
-      ]);
+    // Every selected file gets a tag immediately, each resolving as its own upload
+    // returns. Sending the whole selection as one request meant a user picking eight
+    // section exports watched a single spinner with no idea which had gone in.
+    const selected = files.map(f => f.name);
+    setFileStatuses(prev => [
+      ...prev.filter(p => !selected.includes(p.filename)),
+      ...files.map(f => ({
+        filename: f.name, rows: 0, parsed: 0, errors_count: 0, errors: [], pending: true,
+      })),
+    ]);
 
-      // Re-read page 1 from the session rather than seeding it with just-uploaded rows:
-      // an append leaves earlier sections ahead of these in the preview.
-      try {
-        const firstPage = await fetchKraPage(1, 100);
-        kraPagination.reset(firstPage.items, firstPage.total, firstPage.total_pages);
-      } catch {
-        const totalParsed = data.total_kra_records;
-        kraPagination.reset(data.invoices, totalParsed, Math.ceil(totalParsed / 100));
+    let total = kraPagination.totalItems ?? 0;
+    const failures: string[] = [];
+
+    try {
+      for (const file of files) {
+        try {
+          const data = await uploadInvoicesCSV(type, sessionId, [file]);
+          const status = data.files.find(f => f.filename === file.name);
+          setFileStatuses(prev =>
+            prev.map(p => (p.filename === file.name ? { ...(status ?? p), pending: false } : p))
+          );
+
+          total = data.total_kra_records;
+
+          // Re-read page 1 rather than seeding with the rows just uploaded: an append
+          // leaves earlier sections ahead of these in the preview.
+          const firstPage = await fetchInvoicesPage(sessionId, "KRA", 1, 100);
+          kraPagination.reset(firstPage.items, firstPage.total, firstPage.total_pages);
+        } catch (err: unknown) {
+          // One bad file must not discard the ones that imported cleanly, so the tag is
+          // marked failed and the remaining files still go up.
+          const message = err instanceof Error ? err.message : "Upload failed";
+          failures.push(file.name);
+          setFileStatuses(prev =>
+            prev.map(p =>
+              p.filename === file.name
+                ? { ...p, pending: false, errors_count: 1, errors: [{ row: 0, column: null, message }] }
+                : p
+            )
+          );
+        }
       }
 
-      setUiState(prev => ({ ...prev, kra: { status: AsyncStatus.Loaded } }));
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : "An unknown error occurred uploading CSV.";
-      setUiState(prev => ({ ...prev, kra: { status: AsyncStatus.Error, error: errorMessage } }));
+      if (total > 0) {
+        setUiState(prev => ({ ...prev, kra: { status: AsyncStatus.Loaded } }));
+        if (failures.length) {
+          notify(`${failures.length} of ${files.length} file(s) could not be imported`, "error");
+        }
+      } else {
+        setUiState(prev => ({
+          ...prev,
+          kra: {
+            status: AsyncStatus.Error,
+            error: `None of the selected file${files.length !== 1 ? "s" : ""} could be imported.`,
+          },
+        }));
+      }
     } finally {
       // Always clear, so selecting the same files again re-fires onChange. Previously
       // this only ran on failure and a repeat selection did nothing at all.
@@ -314,6 +398,7 @@ export function useWorkspace(type: "sales" | "purchases") {
     resultsPagination.reset();
     setFileStatuses([]);
     setRemovingFiles([]);
+    setSapProgress(null);
     setFromDate("");
     setToDate("");
     setGlobalError(null);
@@ -363,6 +448,7 @@ export function useWorkspace(type: "sales" | "purchases") {
     handleFileUpload,
     handleRemoveKraFile,
     removingFiles,
+    sapProgress,
     handleCompare,
     resetState,
 

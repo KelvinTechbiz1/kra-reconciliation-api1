@@ -23,6 +23,11 @@ router = APIRouter(prefix="/sales", tags=["sales"])
 def get_sales(
     from_date: date = Query(..., alias="from", description="Start date (YYYY-MM-DD)"),
     to_date: date = Query(..., alias="to", description="End date (YYYY-MM-DD)"),
+    session_id: str | None = Query(
+        None,
+        description="Append to this existing session instead of starting a new one. "
+                    "Used to load a long range as successive windows.",
+    ),
     current_user: User = Depends(get_current_user),
     db=Depends(get_db),
     sap_client: SAPClient = Depends(get_company_sap_client),
@@ -31,7 +36,9 @@ def get_sales(
     Fetch sales invoices within a given date range. Currently returns normalized SAP data.
     Stores the loaded invoices in a database-backed session with ReconciliationType.SALES.
     """
-    return load_sap_invoices(db, current_user, sap_client, ReconciliationType.SALES, from_date, to_date)
+    return load_sap_invoices(
+        db, current_user, sap_client, ReconciliationType.SALES, from_date, to_date, session_id=session_id
+    )
 
 
 @router.post("/upload", response_model=MultipleInvoiceUploadResponse)
