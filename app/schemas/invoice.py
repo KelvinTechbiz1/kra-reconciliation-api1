@@ -4,6 +4,7 @@ from enum import Enum
 from typing import Optional
 from pydantic import BaseModel, field_serializer
 
+from app.utils.cu_utils import canonical_cu_number
 from app.utils.vat_utils import canonical_vat_key
 
 
@@ -43,7 +44,9 @@ class Invoice(BaseModel):
 
     @property
     def normalized_cu_number(self) -> str:
-        return self.cu_number.strip() if self.cu_number else ""
+        # Keys the reconciliation group, so it must agree across sources: the eTIMS
+        # "<device serial>/<number>" form has to reduce to the same string SAP holds.
+        return canonical_cu_number(self.cu_number)
 
     @property
     def normalized_vat_group(self) -> str:

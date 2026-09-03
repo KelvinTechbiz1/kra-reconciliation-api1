@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 from app.core.config import get_settings
 from app.core.exceptions import SAPQueryError
 from app.services.vat_normalizer import VatNormalizer, vat_normalizer
+from app.utils.cu_utils import canonical_cu_number
 from app.utils.vat_utils import normalize_vat_rate
 from app.domain.document_types import CanonicalReconciliationRow, IngestionProvenance
 
@@ -36,11 +37,10 @@ def parse_sap_date(date_val: Any) -> datetime.date:
 def extract_cu_number(raw_document: Dict[str, Any], cu_field: str) -> str:
     """
     Extracts the CU (Control Unit) number from a raw SAP document using the configured
-    SAP field name. Strips surrounding whitespace and a leading pipe '|' (SAP UDF convention).
+    SAP field name. Canonicalized the same way the KRA side is, so the two pair up.
     Centralizing this makes future field-specific tweaks a one-function change.
     """
-    value = raw_document.get(cu_field)
-    return str(value).strip().lstrip("|").strip() if value else ""
+    return canonical_cu_number(raw_document.get(cu_field))
 
 
 def _handle_unmapped_vat_code(

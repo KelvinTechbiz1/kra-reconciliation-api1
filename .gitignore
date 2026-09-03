@@ -107,3 +107,5 @@ docs/Logbook-entries.md
 !docs/
 .env.example
 deploy/docker-compose.yml
+scripts/reset_aquila_password.sh
+*.CSV

@@ -16,6 +16,7 @@ from app.schemas.import_profile import (
     PreviewRowSample,
 )
 from app.schemas.invoice import CSVValidationErrorDetail, Invoice, InvoiceSource, ReconciliationType
+from app.utils.cu_utils import canonical_cu_number
 from app.utils.vat_utils import canonical_vat_key
 
 
@@ -226,7 +227,7 @@ class ERPImportService:
             raw_pin = str(row[col_pin]).strip() if col_pin and pd.notna(row[col_pin]) else ""
             raw_partner = str(row[col_partner]).strip() if col_partner and pd.notna(row[col_partner]) else ""
             raw_inv_num = str(row[col_inv_num]).strip() if col_inv_num and pd.notna(row[col_inv_num]) else ""
-            raw_cu_num = str(row[col_cu_num]).strip() if col_cu_num and pd.notna(row[col_cu_num]) else ""
+            raw_cu_num = canonical_cu_number(row[col_cu_num]) if col_cu_num and pd.notna(row[col_cu_num]) else ""
             raw_vat_group = normalize_vat_value(row[col_vat_group]) if col_vat_group and pd.notna(row[col_vat_group]) else rules.default_vat_group
             
             raw_date_val = row[col_inv_date] if col_inv_date and pd.notna(row[col_inv_date]) else None
@@ -325,7 +326,7 @@ class ERPImportService:
             raw_pin = str(row[col_pin]).strip() if col_pin and pd.notna(row[col_pin]) else ""
             raw_partner = str(row[col_partner]).strip() if col_partner and pd.notna(row[col_partner]) else ""
             raw_inv_num = str(row[col_inv_num]).strip() if col_inv_num and pd.notna(row[col_inv_num]) else ""
-            raw_cu_num = str(row[col_cu_num]).strip() if col_cu_num and pd.notna(row[col_cu_num]) else ""
+            raw_cu_num = canonical_cu_number(row[col_cu_num]) if col_cu_num and pd.notna(row[col_cu_num]) else ""
             raw_vat_group = normalize_vat_value(row[col_vat_group]) if col_vat_group and pd.notna(row[col_vat_group]) else rules.default_vat_group
 
             raw_date_val = row[col_inv_date] if col_inv_date and pd.notna(row[col_inv_date]) else None

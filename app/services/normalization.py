@@ -2,6 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 import re
 
+from app.utils.cu_utils import canonical_cu_number
 from app.utils.vat_utils import canonical_vat_key
 
 LEGAL_SUFFIXES = {
@@ -101,7 +102,9 @@ def normalize_invoice_data(
         norm_date = parsed_date
 
     # 5. CU Number (Allow empty string as fallback)
-    norm_cu = "" if cu_number is None else str(cu_number).strip().lstrip("|").strip()
+    # Drops the leading '|' and any eTIMS device-serial prefix so the stored value
+    # matches what the other side holds.
+    norm_cu = canonical_cu_number(cu_number)
 
     # 6. VAT Group (string representation)
     if vat_group is None or (isinstance(vat_group, str) and not vat_group.strip()):
