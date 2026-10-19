@@ -13,6 +13,17 @@ from app.models.settings import (
 from app.utils.vat_utils import normalize_vat_rate
 
 
+class CertificateInfo(BaseModel):
+    subject: str
+    issuer: str
+    not_valid_before: datetime
+    not_valid_after: datetime
+    fingerprint_sha256: str
+    is_expired: bool
+    is_self_signed: bool
+    certificate_count: int = 1
+
+
 class SAPConnectionBase(BaseModel):
     name: str = Field(default="Primary SAP Connection", max_length=100)
     base_url: str = Field(..., description="Base URL of SAP Service Layer (e.g. https://sap.example.com:50000/b1s/v1)")
@@ -31,6 +42,7 @@ class SAPConnectionBase(BaseModel):
 
 class SAPConnectionCreate(SAPConnectionBase):
     password: str = Field(..., min_length=1)
+    ca_certificate: Optional[str] = None
 
 
 class SAPConnectionUpdate(BaseModel):
@@ -40,6 +52,10 @@ class SAPConnectionUpdate(BaseModel):
     username: Optional[str] = None
     password: Optional[str] = None
     verify_ssl: Optional[bool] = None
+    ca_certificate: Optional[str] = Field(
+        default=None,
+        description="PEM certificate to trust for this server. Omit to keep the current one; empty string removes it.",
+    )
     version: int = Field(..., description="Current connection version for optimistic locking")
 
 
@@ -49,6 +65,8 @@ class SAPConnectionResponse(SAPConnectionBase):
     id: int
     company_id: int
     password_set: bool = True
+    ca_certificate: Optional[str] = None
+    ca_certificate_info: Optional[CertificateInfo] = None
     is_active: bool
     version: int
     created_at: datetime
@@ -184,7 +202,20 @@ class TestConnectionRequest(BaseModel):
     username: Optional[str] = None
     password: Optional[str] = None
     verify_ssl: Optional[bool] = None
+    ca_certificate: Optional[str] = Field(
+        default=None,
+        description="PEM certificate to trust for this test. Omit to use the saved one; empty string tests without it.",
+    )
     connection_id: Optional[int] = None
+
+
+class FetchCertificateRequest(BaseModel):
+    base_url: str
+
+
+class FetchCertificateResponse(BaseModel):
+    pem: str
+    info: CertificateInfo
 
 
 class StepResult(BaseModel):
@@ -197,6 +228,7 @@ class TestConnectionResponse(BaseModel):
     steps: Dict[str, StepResult]
     metadata: Optional[Dict[str, Any]] = None
     error_message: Optional[str] = None
+    certificate_untrusted: bool = False
 
 
 class SettingAuditLogResponse(BaseModel):

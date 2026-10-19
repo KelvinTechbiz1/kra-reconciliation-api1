@@ -6,6 +6,13 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.sap_tls import (
+    build_verify,
+    describe_certificate,
+    fetch_server_certificate,
+    is_untrusted_certificate_error,
+    normalize_certificate_pem,
+)
 from app.models.settings import (
     BaseAmountPolicy,
     CompanySAPConnection,
@@ -19,6 +26,7 @@ from app.models.settings import (
 )
 from app.models.user import User
 from app.schemas.settings import (
+    FetchCertificateResponse,
     SAPConnectionCreate,
     SAPConnectionResponse,
     SAPConnectionUpdate,
@@ -265,6 +273,11 @@ class SettingsService:
         user_id = current_user.id if current_user else None
         user_email = current_user.email if current_user else "system"
 
+        # None leaves the pinned certificate alone; "" removes it.
+        new_ca_certificate: Optional[str] = None
+        if payload.ca_certificate:
+            new_ca_certificate = normalize_certificate_pem(payload.ca_certificate)
+
         if not active_conn:
             if not payload.base_url or not payload.company_db or not payload.username or not payload.password:
                 raise ValueError("base_url, company_db, username, and password are required for initial SAP setup.")
@@ -277,6 +290,7 @@ class SettingsService:
                 username=payload.username,
                 password=payload.password,
                 verify_ssl=True,
+                ca_certificate=new_ca_certificate,
                 is_active=True,
                 version=1,
                 updated_by_id=user_id,
@@ -318,6 +332,12 @@ class SettingsService:
         if payload.password:
             changes["password"] = {"old": "••••••••", "new": "•••••••• (Updated)"}
             active_conn.password = payload.password
+        if payload.ca_certificate is not None and new_ca_certificate != active_conn.ca_certificate:
+            changes["ca_certificate"] = {
+                "old": cls._certificate_fingerprint(active_conn.ca_certificate),
+                "new": cls._certificate_fingerprint(new_ca_certificate),
+            }
+            active_conn.ca_certificate = new_ca_certificate
 
         if changes:
             active_conn.version += 1
@@ -569,7 +589,19 @@ class SettingsService:
         company_db = (req.company_db or (active_conn.company_db if active_conn else "")).strip()
         username = (req.username or (active_conn.username if active_conn else "")).strip()
         password = req.password or (active_conn.password if active_conn else "")
-        verify_ssl = True
+        if req.ca_certificate is None:
+            ca_certificate = active_conn.ca_certificate if active_conn else None
+        elif req.ca_certificate.strip():
+            try:
+                ca_certificate = normalize_certificate_pem(req.ca_certificate)
+            except ValueError as e:
+                return TestConnectionResponse(
+                    connected=False,
+                    steps={"host_reachable": StepResult(status="fail", message=f"Trusted certificate is invalid: {e}")},
+                    error_message="Invalid trusted certificate.",
+                )
+        else:
+            ca_certificate = None
 
         steps: Dict[str, StepResult] = {}
         start_time = time.time()
@@ -582,7 +614,7 @@ class SettingsService:
             )
 
         login_url = f"{base_url}/Login"
-        client = httpx.Client(verify=verify_ssl, timeout=8.0)
+        client = httpx.Client(verify=build_verify(True, ca_certificate), timeout=8.0)
 
         try:
             ping_resp = client.post(
@@ -592,6 +624,21 @@ class SettingsService:
             elapsed_ms = round((time.time() - start_time) * 1000, 1)
             steps["host_reachable"] = StepResult(status="pass", message=f"Host responded in {elapsed_ms}ms.")
         except httpx.ConnectError as e:
+            if is_untrusted_certificate_error(e):
+                hint = (
+                    "The pinned certificate does not match the one this server presents."
+                    if ca_certificate
+                    else "The server's certificate is self-signed or issued by an unknown authority."
+                )
+                steps["host_reachable"] = StepResult(
+                    status="fail", message=f"SSL certificate for {base_url} is not trusted. {hint} ({e})"
+                )
+                return TestConnectionResponse(
+                    connected=False,
+                    steps=steps,
+                    error_message="SSL certificate not trusted. Review and trust the server's certificate to continue.",
+                    certificate_untrusted=True,
+                )
             steps["host_reachable"] = StepResult(status="fail", message=f"Failed to connect to host {base_url}: {str(e)}")
             return TestConnectionResponse(connected=False, steps=steps, error_message="Network host unreachable.")
         except httpx.TimeoutException:
@@ -664,6 +711,16 @@ class SettingsService:
     # Helpers
     # ------------------------------------------------------------------ #
     @staticmethod
+    def fetch_sap_certificate(base_url: str) -> FetchCertificateResponse:
+        """Fetch the certificate an SAP server presents so an admin can review and pin it."""
+        pem = fetch_server_certificate(base_url)
+        return FetchCertificateResponse(pem=pem, info=describe_certificate(pem))
+
+    @staticmethod
+    def _certificate_fingerprint(pem: Optional[str]) -> Optional[str]:
+        return describe_certificate(pem).fingerprint_sha256 if pem else None
+
+    @staticmethod
     def _connection_to_response(conn: CompanySAPConnection) -> SAPConnectionResponse:
         return SAPConnectionResponse(
             id=conn.id,
@@ -674,6 +731,8 @@ class SettingsService:
             username=conn.username,
             password_set=bool(conn.password),
             verify_ssl=conn.verify_ssl,
+            ca_certificate=conn.ca_certificate,
+            ca_certificate_info=describe_certificate(conn.ca_certificate) if conn.ca_certificate else None,
             is_active=conn.is_active,
             version=conn.version,
             created_at=conn.created_at,

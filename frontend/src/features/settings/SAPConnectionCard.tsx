@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { SAPConnection, TestConnectionResponse } from "@/types/settings";
+import {
+  CertificateInfo,
+  FetchCertificateResponse,
+  SAPConnection,
+  TestConnectionResponse,
+} from "@/types/settings";
 import { fetchWithAuth } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/errors";
 import { useToast } from "@/components/ToastProvider";
@@ -20,6 +25,9 @@ import {
   Save,
   Eye,
   EyeOff,
+  Lock,
+  Download,
+  Trash2,
 } from "lucide-react";
 
 interface SAPConnectionCardProps {
@@ -41,12 +49,22 @@ export function SAPConnectionCard({
   const [username, setUsername] = useState(connection?.username || "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  // Pinned certificate for servers with a self-signed cert. "" means use public CAs.
+  const [caCertificate, setCaCertificate] = useState(connection?.ca_certificate || "");
+  const [caInfo, setCaInfo] = useState<CertificateInfo | null>(connection?.ca_certificate_info || null);
+  const [pendingCert, setPendingCert] = useState<FetchCertificateResponse | null>(null);
+  const [fetchingCert, setFetchingCert] = useState(false);
+  const [showPaste, setShowPaste] = useState(false);
   useEffect(() => {
     setName(connection?.name || "Primary SAP Connection");
     setBaseUrl(connection?.base_url || "");
     setCompanyDb(connection?.company_db || "");
     setUsername(connection?.username || "");
     setPassword("");
+    setCaCertificate(connection?.ca_certificate || "");
+    setCaInfo(connection?.ca_certificate_info || null);
+    setPendingCert(null);
+    setShowPaste(false);
     setTestResult(null);
   }, [connection]);
 
@@ -69,6 +87,7 @@ export function SAPConnectionCard({
           username: username,
           password: password || undefined,
           verify_ssl: true,
+          ca_certificate: caCertificate,
         }),
       });
       const data: TestConnectionResponse = await res.json();
@@ -92,6 +111,7 @@ export function SAPConnectionCard({
         company_db: companyDb,
         username,
         verify_ssl: true,
+        ca_certificate: caCertificate,
         version: connection?.version || 1,
       };
       if (password) {
@@ -130,6 +150,43 @@ export function SAPConnectionCard({
     setter(val);
     setTestResult(null);
   };
+
+  const handleFetchCertificate = async () => {
+    setFetchingCert(true);
+    setPendingCert(null);
+    try {
+      const res = await fetchWithAuth("/settings/sap-certificate/fetch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base_url: baseUrl }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(getApiErrorMessage(data, "Could not retrieve the server certificate."));
+      }
+      setPendingCert(data as FetchCertificateResponse);
+    } catch (err: unknown) {
+      notify(getApiErrorMessage(err, "Could not retrieve the server certificate."), "error");
+    } finally {
+      setFetchingCert(false);
+    }
+  };
+
+  const trustCertificate = (cert: FetchCertificateResponse) => {
+    setCaCertificate(cert.pem);
+    setCaInfo(cert.info);
+    setPendingCert(null);
+    setShowPaste(false);
+    setTestResult(null);
+  };
+
+  const removeCertificate = () => {
+    setCaCertificate("");
+    setCaInfo(null);
+    setTestResult(null);
+  };
+
+  const canFetchCertificate = baseUrl.trim().toLowerCase().startsWith("https://");
 
   const isTestedAndValid = testResult?.connected === true;
 
@@ -260,6 +317,107 @@ export function SAPConnectionCard({
               </button>
             </div>
           </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+              <Lock className="w-4 h-4 text-[#0e1734]" />
+              Trusted SSL Certificate
+            </label>
+
+            {caCertificate ? (
+              <div className="p-3.5 rounded-lg border border-emerald-200 bg-emerald-50/60 text-xs space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2 font-semibold text-emerald-800">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                    Pinned certificate. Only this server certificate is trusted.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={removeCertificate}
+                    className="inline-flex items-center gap-1 text-slate-500 hover:text-rose-600 cursor-pointer transition-colors shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Remove
+                  </button>
+                </div>
+                {caInfo ? (
+                  <CertificateDetails info={caInfo} />
+                ) : (
+                  <p className="text-slate-600">Pasted certificate. Details appear after saving.</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">
+                Verified against public certificate authorities. If your Service Layer uses SAP&apos;s
+                default self-signed certificate, fetch it from the server and trust it here.
+              </p>
+            )}
+
+            {pendingCert && (
+              <div className="p-3.5 rounded-lg border border-amber-200 bg-amber-50 text-xs space-y-3">
+                <div className="flex items-start gap-2 font-medium text-amber-800">
+                  <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  Before trusting this certificate, confirm its SHA-256 fingerprint with your SAP administrator.
+                </div>
+                <CertificateDetails info={pendingCert.info} />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => trustCertificate(pendingCert)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0e1734] hover:bg-[#16224c] text-white rounded-md font-semibold cursor-pointer transition-colors"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    Trust Certificate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingCert(null)}
+                    className="px-3 py-1.5 rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 font-medium cursor-pointer transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleFetchCertificate}
+                disabled={fetchingCert || !canFetchCertificate}
+                title={canFetchCertificate ? "Retrieve the certificate this server presents" : "Base URL must start with https://"}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-medium cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {fetchingCert ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                {caCertificate ? "Re-fetch from Server" : "Fetch Server Certificate"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPaste(!showPaste)}
+                className="px-3 py-1.5 rounded-md text-xs font-medium text-slate-600 hover:text-slate-900 cursor-pointer transition-colors"
+              >
+                {showPaste ? "Hide" : "Paste PEM instead"}
+              </button>
+            </div>
+
+            {showPaste && (
+              <textarea
+                value={caCertificate}
+                onChange={(e) => {
+                  handleFieldChange(setCaCertificate)(e.target.value);
+                  setCaInfo(null);
+                }}
+                rows={6}
+                spellCheck={false}
+                placeholder={"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"}
+                className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs font-mono transition-colors focus:outline-none focus:ring-2 focus:ring-[#0e1734]/20 focus:border-[#0e1734] placeholder:text-slate-400"
+              />
+            )}
+          </div>
         </div>
 
         {/* Diagnostic Action Bar */}
@@ -364,6 +522,18 @@ export function SAPConnectionCard({
             </div>
           )}
 
+          {testResult.certificate_untrusted && canFetchCertificate && !pendingCert && (
+            <button
+              type="button"
+              onClick={handleFetchCertificate}
+              disabled={fetchingCert}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-medium cursor-pointer transition-colors disabled:opacity-50"
+            >
+              {fetchingCert ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
+              Review Server Certificate
+            </button>
+          )}
+
           {testResult.metadata && (
             <div className="grid grid-cols-2 gap-4 text-xs font-mono pt-3 border-t border-slate-200">
               <div>
@@ -379,5 +549,29 @@ export function SAPConnectionCard({
         </div>
       )}
     </div>
+  );
+}
+
+function CertificateDetails({ info }: { info: CertificateInfo }) {
+  const rows: [string, string][] = [
+    ["Subject", info.subject],
+    ["Issuer", info.is_self_signed ? "Self-signed" : info.issuer],
+    ["Expires", new Date(info.not_valid_after).toLocaleDateString()],
+    ["SHA-256", info.fingerprint_sha256],
+  ];
+  return (
+    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-[11px]">
+      {rows.map(([label, value]) => (
+        <div key={label} className="contents">
+          <dt className="text-slate-500">{label}</dt>
+          <dd className="text-slate-800 break-all">
+            {value}
+            {label === "Expires" && info.is_expired && (
+              <span className="ml-2 text-rose-600 font-semibold">Expired</span>
+            )}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }

@@ -5,6 +5,22 @@ export type VatModule = "sales" | "purchases";
 // SAP field holding the Purchase Invoice CU number. Values are the exact SAP field names.
 export type PurchaseCUField = "U_CUINV" | "NumAtCard" | "Comments" | "JournalMemo" | "Reference1";
 
+export interface CertificateInfo {
+  subject: string;
+  issuer: string;
+  not_valid_before: string;
+  not_valid_after: string;
+  fingerprint_sha256: string;
+  is_expired: boolean;
+  is_self_signed: boolean;
+  certificate_count: number;
+}
+
+export interface FetchCertificateResponse {
+  pem: string;
+  info: CertificateInfo;
+}
+
 export interface SAPConnection {
   id: number;
   name: string;
@@ -13,6 +29,8 @@ export interface SAPConnection {
   username: string;
   password_set: boolean;
   verify_ssl: boolean;
+  ca_certificate?: string | null;
+  ca_certificate_info?: CertificateInfo | null;
   is_active: boolean;
   version: number;
   created_at: string;
@@ -85,6 +103,7 @@ export interface TestConnectionResponse {
   connected: boolean;
   steps: Record<string, StepResult>;
   error_message?: string | null;
+  certificate_untrusted?: boolean;
   metadata?: {
     system_version?: string;
     company_name?: string;

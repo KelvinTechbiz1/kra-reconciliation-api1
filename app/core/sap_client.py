@@ -7,6 +7,7 @@ import httpx
 
 from app.core.config import get_settings
 from app.core.exceptions import SAPConnectionError, SAPQueryError
+from app.core.sap_tls import build_verify, is_untrusted_certificate_error
 from app.schemas.invoice import ReconciliationType
 
 logger = logging.getLogger(__name__)
@@ -31,15 +32,20 @@ class SAPClient:
         password: str = "",
         company_db: str = "",
         verify_ssl: bool = True,
+        ca_certificate: str | None = None,
     ):
         self.base_url = str(base_url).rstrip("/") if base_url else ""
         self.username = username
         self.password = password
         self.company_db = company_db
         self.verify_ssl = verify_ssl
+        self.ca_certificate = ca_certificate
 
         # Initialize httpx Client
-        self.client = httpx.Client(verify=self.verify_ssl, timeout=get_settings().sap_request_timeout)
+        self.client = httpx.Client(
+            verify=build_verify(self.verify_ssl, self.ca_certificate),
+            timeout=get_settings().sap_request_timeout,
+        )
         self.session_id = None
         self.cookies = {}
         self.session_expiry = None
@@ -53,6 +59,7 @@ class SAPClient:
             password=connection.password,
             company_db=connection.company_db,
             verify_ssl=connection.verify_ssl,
+            ca_certificate=connection.ca_certificate,
         )
 
     def clone(self) -> "SAPClient":
@@ -66,6 +73,7 @@ class SAPClient:
             password=self.password,
             company_db=self.company_db,
             verify_ssl=self.verify_ssl,
+            ca_certificate=self.ca_certificate,
         )
 
     def login(self) -> None:
@@ -89,6 +97,11 @@ class SAPClient:
             response = self.client.post(login_url, json=payload)
         except httpx.RequestError as exc:
             logger.error(f"SAP Service Layer Login failed due to connection error: {exc}")
+            if is_untrusted_certificate_error(exc):
+                raise SAPConnectionError(
+                    "SAP Service Layer SSL certificate is not trusted. "
+                    "Trust the server's certificate in Settings > SAP Connection."
+                )
             raise SAPConnectionError(f"Connection to SAP Service Layer failed: {exc}")
 
         if response.status_code != 200:

@@ -66,6 +66,9 @@ class CompanySAPConnection(Base):
     username = Column(String(100), nullable=False)
     password = Column(String(500), nullable=False)
     verify_ssl = Column(Boolean, nullable=False, default=True)
+    # PEM certificate pinned for this server (e.g. SAP's self-signed Service Layer cert).
+    # When set, TLS is verified against it instead of the system CA store.
+    ca_certificate = Column(Text, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
     version = Column(Integer, nullable=False, default=1)
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))

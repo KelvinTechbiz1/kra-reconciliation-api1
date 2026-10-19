@@ -7,6 +7,8 @@ from app.core.dependencies import get_current_user, get_db, require_platform_adm
 from app.models.company import Company
 from app.models.user import User
 from app.schemas.settings import (
+    FetchCertificateRequest,
+    FetchCertificateResponse,
     SAPConnectionResponse,
     SAPConnectionUpdate,
     SettingAuditLogResponse,
@@ -141,6 +143,20 @@ def test_sap_connection(
 ):
     """Test SAP Service Layer connectivity using the company's connection or form parameters."""
     return SettingsService.test_sap_connection(db, company.id, payload)
+
+
+@router.post("/sap-certificate/fetch", response_model=FetchCertificateResponse)
+def fetch_sap_certificate(
+    payload: FetchCertificateRequest,
+    current_user: User = Depends(require_admin_role),
+):
+    """Return the certificate an SAP server presents, for an admin to review before trusting it."""
+    try:
+        return SettingsService.fetch_sap_certificate(payload.base_url)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ConnectionError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
 
 
 @router.get("/audit-logs", response_model=List[SettingAuditLogResponse])
