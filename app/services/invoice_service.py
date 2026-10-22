@@ -6,7 +6,7 @@ import time
 from app.core.config import get_settings
 from app.schemas.invoice import Invoice, InvoiceSource, ReconciliationType
 from app.core.sap_client import SAPClient
-from app.services.sap_mapper import map_sap_document_to_canonical_rows
+from app.services.sap_mapper import PurchaseFieldMapping, map_sap_document_to_canonical_rows
 from app.services.normalization import normalize_invoice_data
 
 logger = logging.getLogger(__name__)
@@ -75,6 +75,7 @@ def _fetch_endpoint_invoices(
     base_amount_policy: str | None = None,
     vat_normalizer_override=None,
     unmapped_vat_policy: str | None = None,
+    field_mapping: PurchaseFieldMapping | None = None,
 ) -> tuple[list[Invoice], int, int, int, float]:
     start_time = time.perf_counter()
     endpoint_invoices = []
@@ -89,7 +90,9 @@ def _fetch_endpoint_invoices(
         page_size=page_size,
         reconciliation_session_id=reconciliation_session_id,
         cu_field=cu_field,
+        extra_select_fields=field_mapping.header_fields if field_mapping else None,
     )
+    field_stats: dict[str, int] = {}
 
     bp_pin_cache: dict[str, str] = {}
     pins_backfilled = 0
@@ -112,6 +115,8 @@ def _fetch_endpoint_invoices(
                     base_amount_policy=base_amount_policy,
                     vat_normalizer_override=vat_normalizer_override,
                     unmapped_vat_policy=unmapped_vat_policy,
+                    field_mapping=field_mapping,
+                    stats=field_stats,
                 )
                 for row in canonical_rows:
                     normalized = normalize_invoice_data(
@@ -141,6 +146,19 @@ def _fetch_endpoint_invoices(
 
     elapsed = time.perf_counter() - start_time
     avg_page_time = (elapsed / page_count) if page_count > 0 else 0.0
+    if field_mapping and field_mapping.is_custom:
+        configured = ", ".join(f for f in (field_mapping.vat_field, field_mapping.amount_field) if f)
+        if raw_doc_count and not field_stats.get("custom"):
+            logger.warning(
+                f"[ReconciliationSession: {reconciliation_session_id}] {endpoint_name}: the configured purchase "
+                f"field(s) {configured} were empty on every document, so the standard SAP fields were used. "
+                f"Check the field names under Settings."
+            )
+        elif field_stats.get("fallback"):
+            logger.info(
+                f"[ReconciliationSession: {reconciliation_session_id}] {endpoint_name}: {field_stats['fallback']} "
+                f"document(s) had empty {configured} and used the standard SAP fields."
+            )
     if pins_backfilled:
         logger.info(
             f"[ReconciliationSession: {reconciliation_session_id}] {endpoint_name}: recovered PINs from the "
@@ -166,6 +184,7 @@ def get_invoices(
     base_amount_policy: str | None = None,
     vat_normalizer_override=None,
     unmapped_vat_policy: str | None = None,
+    purchase_field_mapping: PurchaseFieldMapping | None = None,
 ) -> list[Invoice]:
     """
     Fetches Invoices and Credit Notes (Sales or Purchases) in parallel page-by-page from SAP Service Layer,
@@ -189,6 +208,7 @@ def get_invoices(
         endpoints = [("PurchaseInvoices", "Invoice"), ("PurchaseCreditNotes", "CreditNote")]
 
     cu_field = sales_cu_source if reconciliation_type == ReconciliationType.SALES else purchase_cu_source
+    field_mapping = purchase_field_mapping if reconciliation_type == ReconciliationType.PURCHASES else None
 
     all_invoices = []
     total_raw_documents = 0
@@ -211,6 +231,7 @@ def get_invoices(
                 base_amount_policy=base_amount_policy,
                 vat_normalizer_override=vat_normalizer_override,
                 unmapped_vat_policy=unmapped_vat_policy,
+                field_mapping=field_mapping,
             )
             for endpoint_name, source_doc_type in endpoints
         ]

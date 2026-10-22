@@ -123,6 +123,12 @@ class CompanySetting(Base):
         default="U_CUINV",
         comment="SAP field holding the CU number on Purchase Invoices (e.g. U_CUINV, NumAtCard, Comments, JournalMemo, Reference1)",
     )
+    # Purchase Invoice comparison fields; NULL means the standard SAP fields
+    # (TaxPercentagePerRow/VatGroup and LineTotal). Level is "line" or "header".
+    purchase_vat_field = Column(String(50), nullable=True)
+    purchase_vat_field_level = Column(String(10), nullable=False, default="line", server_default="line")
+    purchase_amount_field = Column(String(50), nullable=True)
+    purchase_amount_field_level = Column(String(10), nullable=False, default="line", server_default="line")
 
 
     kra_parsing_profiles = Column(JSON, nullable=True, comment="JSON configuration mapping KRA section prefixes to CSV parsing rules")

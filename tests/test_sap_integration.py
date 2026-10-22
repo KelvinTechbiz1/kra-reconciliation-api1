@@ -658,3 +658,32 @@ def test_base_amount_policy_accepts_enum_member():
     # The zero line is skipped; only the 100.00 line survives
     assert len(rows) == 1
     assert rows[0].base_amount == Decimal("100.00")
+
+
+def test_get_documents_pages_selects_configured_header_fields():
+    """Header-level purchase fields must be requested in $select; line-level ones arrive in DocumentLines."""
+    from app.services.sap_mapper import PurchaseFieldMapping
+
+    def select_for(mapping):
+        client = SAPClient()
+        client.base_url = "https://sap-test:50000/b1s/v1"
+        client.session_id = "active-session"
+        client.cookies = {"B1SESSION": "active-session"}
+        client.session_expiry = datetime.datetime.now() + datetime.timedelta(minutes=10)
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"value": []}
+        with patch.object(client, "_execute_request_with_retry", return_value=mock_response) as mock_exec:
+            list(client.get_documents_pages(
+                "2026-10-01", "2026-10-31", "PurchaseInvoices", page_size=100,
+                extra_select_fields=mapping.header_fields,
+            ))
+        return mock_exec.call_args.kwargs["params"]["$select"].split(",")
+
+    line_level = select_for(PurchaseFieldMapping(vat_field="U_Taxable", amount_field="U_ExcVat"))
+    assert "U_Taxable" not in line_level and "U_ExcVat" not in line_level
+
+    header_level = select_for(PurchaseFieldMapping(
+        vat_field="U_Taxable", vat_level="header", amount_field="U_DocTotal", amount_level="header",
+    ))
+    assert {"U_Taxable", "U_DocTotal", "DocumentLines", "U_CUINV"} <= set(header_level)

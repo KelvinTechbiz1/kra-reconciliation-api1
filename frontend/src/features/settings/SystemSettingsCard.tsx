@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BaseAmountPolicy, PurchaseCUField, SystemSettings, UnmappedVatPolicy } from "@/types/settings";
+import { BaseAmountPolicy, PurchaseCUField, SAPFieldLevel, SystemSettings, UnmappedVatPolicy } from "@/types/settings";
 import { fetchWithAuth } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/errors";
 import { useToast } from "@/components/ToastProvider";
@@ -15,6 +15,7 @@ import {
   Loader2,
   CheckCircle2,
   ShieldAlert,
+  Receipt,
 } from "lucide-react";
 
 interface SystemSettingsCardProps {
@@ -38,7 +39,22 @@ export function SystemSettingsCard({ settings, selectedCompanyId, onSaved }: Sys
     settings.purchase_cu_source || "U_CUINV"
   );
 
+  const [useCustomPurchaseFields, setUseCustomPurchaseFields] = useState(
+    Boolean(settings.purchase_vat_field || settings.purchase_amount_field)
+  );
+  const [purchaseVatField, setPurchaseVatField] = useState(settings.purchase_vat_field || "");
+  const [purchaseVatLevel, setPurchaseVatLevel] = useState<SAPFieldLevel>(settings.purchase_vat_field_level || "line");
+  const [purchaseAmountField, setPurchaseAmountField] = useState(settings.purchase_amount_field || "");
+  const [purchaseAmountLevel, setPurchaseAmountLevel] = useState<SAPFieldLevel>(
+    settings.purchase_amount_field_level || "line"
+  );
+
   useEffect(() => {
+    setUseCustomPurchaseFields(Boolean(settings.purchase_vat_field || settings.purchase_amount_field));
+    setPurchaseVatField(settings.purchase_vat_field || "");
+    setPurchaseVatLevel(settings.purchase_vat_field_level || "line");
+    setPurchaseAmountField(settings.purchase_amount_field || "");
+    setPurchaseAmountLevel(settings.purchase_amount_field_level || "line");
     setAmountTolerance(settings.amount_tolerance);
     setBaseAmountPolicy(settings.base_amount_policy);
     setUnmappedVatPolicy(settings.unmapped_vat_policy);
@@ -63,6 +79,11 @@ export function SystemSettingsCard({ settings, selectedCompanyId, onSaved }: Sys
         unmapped_vat_policy: unmappedVatPolicy,
         sales_cu_source: salesCuSource,
         purchase_cu_source: purchaseCuSource,
+        // Blank or switched off means the standard SAP fields.
+        purchase_vat_field: useCustomPurchaseFields ? purchaseVatField.trim() || null : null,
+        purchase_vat_field_level: purchaseVatLevel,
+        purchase_amount_field: useCustomPurchaseFields ? purchaseAmountField.trim() || null : null,
+        purchase_amount_field_level: purchaseAmountLevel,
         version: settings.version,
       };
 
@@ -283,6 +304,78 @@ export function SystemSettingsCard({ settings, selectedCompanyId, onSaved }: Sys
           </div>
         </div>
 
+        {/* Purchase Invoice comparison fields */}
+        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5">
+            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <Receipt className="w-3.5 h-3.5 text-slate-500" />
+              Purchase Invoice Comparison Fields
+            </h3>
+            <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-[11px] font-medium">
+              {[
+                { value: false, label: "Standard SAP fields" },
+                { value: true, label: "Custom fields" },
+              ].map((opt) => (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onClick={() => setUseCustomPurchaseFields(opt.value)}
+                  className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                    useCustomPurchaseFields === opt.value
+                      ? "bg-[#0e1734] text-white"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {!useCustomPurchaseFields ? (
+            <p className="text-[11px] text-slate-500">
+              VAT code from <span className="font-mono">TaxPercentagePerRow</span> /{" "}
+              <span className="font-mono">VatGroup</span> and Base Amount from{" "}
+              <span className="font-mono">LineTotal</span> on each document line.
+            </p>
+          ) : (
+            <>
+              <p className="text-[11px] text-slate-500">
+                Use this when purchases are booked in SAP differently from the supplier&apos;s invoice, e.g. as
+                zero-rated with the VAT-inclusive amount, and UDFs hold the real VAT code and the amount excluding
+                VAT. Leave a field blank to keep its standard SAP field. Documents where a configured field is empty
+                use the standard fields.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <PurchaseFieldInput
+                  label="VAT Code Field"
+                  placeholder="e.g. U_Taxable"
+                  hint="Codes are resolved through VAT Mappings; a rate such as 16 or 16% is also accepted."
+                  field={purchaseVatField}
+                  onFieldChange={setPurchaseVatField}
+                  level={purchaseVatLevel}
+                  onLevelChange={setPurchaseVatLevel}
+                />
+                <PurchaseFieldInput
+                  label="Base Amount Field"
+                  placeholder="e.g. U_ExcVat"
+                  hint="Compared with KRA's taxable value, so it should exclude VAT."
+                  field={purchaseAmountField}
+                  onFieldChange={setPurchaseAmountField}
+                  level={purchaseAmountLevel}
+                  onLevelChange={setPurchaseAmountLevel}
+                />
+              </div>
+              {purchaseAmountLevel === "header" && purchaseAmountField.trim() && purchaseVatLevel === "line" && (
+                <p className="text-[11px] text-slate-500">
+                  A header-level Base Amount is assigned to the VAT code its lines share. Documents whose lines have
+                  different VAT codes use the standard SAP fields.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+
         {/* Action Button */}
         <div className="pt-4 border-t border-slate-200 flex justify-end">
           <button
@@ -295,6 +388,55 @@ export function SystemSettingsCard({ settings, selectedCompanyId, onSaved }: Sys
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+interface PurchaseFieldInputProps {
+  label: string;
+  placeholder: string;
+  hint: string;
+  field: string;
+  onFieldChange: (value: string) => void;
+  level: SAPFieldLevel;
+  onLevelChange: (level: SAPFieldLevel) => void;
+}
+
+function PurchaseFieldInput({
+  label,
+  placeholder,
+  hint,
+  field,
+  onFieldChange,
+  level,
+  onLevelChange,
+}: PurchaseFieldInputProps) {
+  return (
+    <div className="space-y-2">
+      <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+        {label}
+      </label>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={field}
+          onChange={(e) => onFieldChange(e.target.value)}
+          placeholder={placeholder}
+          pattern="[A-Za-z][A-Za-z0-9_]{0,49}"
+          title="Letters, digits and underscores, starting with a letter"
+          className="flex-1 min-w-0 px-3.5 py-2 h-9 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm font-mono transition-colors focus:outline-none focus:ring-2 focus:ring-[#0e1734]/20 focus:border-[#0e1734]"
+        />
+        <select
+          value={level}
+          onChange={(e) => onLevelChange(e.target.value as SAPFieldLevel)}
+          aria-label={`${label} level`}
+          className="px-2.5 h-9 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0e1734]/20 focus:border-[#0e1734]"
+        >
+          <option value="line">Line level</option>
+          <option value="header">Header level</option>
+        </select>
+      </div>
+      <span className="text-[11px] text-slate-500 block">{hint}</span>
     </div>
   );
 }

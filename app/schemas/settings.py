@@ -73,6 +73,10 @@ class SAPConnectionResponse(SAPConnectionBase):
     updated_at: datetime
 
 
+SAP_FIELD_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,49}$")
+SAPFieldLevel = Literal["line", "header"]
+
+
 class SystemSettingsBase(BaseModel):
     amount_tolerance: Decimal = Field(default=Decimal("10.00"), ge=Decimal("0.00"), description="Amount tolerance in KES")
     base_amount_policy: BaseAmountPolicy = Field(default=BaseAmountPolicy.ALLOW)
@@ -83,7 +87,26 @@ class SystemSettingsBase(BaseModel):
     skip_cancelled: bool = Field(default=True)
     sales_cu_source: str = Field(default="U_CUINV", min_length=1, max_length=50, description="SAP field holding the CU number on Sales Invoices")
     purchase_cu_source: str = Field(default="U_CUINV", min_length=1, max_length=50, description="SAP field holding the CU number on Purchase Invoices")
+    # Purchase Invoice comparison fields. None means the standard SAP fields
+    # (TaxPercentagePerRow/VatGroup for VAT, LineTotal for the base amount).
+    purchase_vat_field: Optional[str] = Field(default=None, description="SAP field holding the VAT code on Purchase Invoices (e.g. U_Taxable)")
+    purchase_vat_field_level: SAPFieldLevel = Field(default="line")
+    purchase_amount_field: Optional[str] = Field(default=None, description="SAP field holding the base amount on Purchase Invoices (e.g. U_ExcVat)")
+    purchase_amount_field_level: SAPFieldLevel = Field(default="line")
     kra_parsing_profiles: Optional["KRAParsingProfilesConfig"] = Field(None, description="Internal JSON representation of profiles")
+
+
+    @field_validator("purchase_vat_field", "purchase_amount_field", mode="before")
+    @classmethod
+    def validate_sap_field_name(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        v = str(v).strip()
+        if not v:
+            return None
+        if not SAP_FIELD_NAME_RE.match(v):
+            raise ValueError("SAP field name must start with a letter and contain only letters, digits and underscores.")
+        return v
 
 
 class SystemSettingsUpdate(SystemSettingsBase):

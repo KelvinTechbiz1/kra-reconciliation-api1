@@ -252,6 +252,7 @@ class SAPClient:
         page_size: int | None = None,
         reconciliation_session_id: str = "N/A",
         cu_field: str = "U_CUINV",
+        extra_select_fields: List[str] | None = None,
     ) -> Generator[List[Dict[str, Any]], None, None]:
         """
         Fetches SAP documents (Invoices or Credit Notes) page-by-page from Service Layer filtered by date range.
@@ -275,7 +276,13 @@ class SAPClient:
         # configurable for purchases) so we only fetch what we need.
         # CardCode is needed to fall back to the Business Partner master when the document
         # itself carries no FederalTaxID — see get_business_partner_pins().
-        select_str = f"CardCode,FederalTaxID,CardName,DocNum,DocDate,{cu_field},DocumentLines,DocumentSubType"
+        # extra_select_fields carries configured header-level fields (e.g. a purchase VAT code
+        # UDF); line-level fields need nothing extra since DocumentLines arrive whole.
+        select_fields = ["CardCode", "FederalTaxID", "CardName", "DocNum", "DocDate", cu_field, "DocumentLines", "DocumentSubType"]
+        for field in extra_select_fields or []:
+            if field not in select_fields:
+                select_fields.append(field)
+        select_str = ",".join(select_fields)
         params_with_select = {**params, "$select": select_str}
 
         url = f"{self.base_url}/{endpoint_name}"

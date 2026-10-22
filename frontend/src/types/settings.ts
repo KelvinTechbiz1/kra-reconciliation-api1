@@ -37,6 +37,9 @@ export interface SAPConnection {
   updated_at: string;
 }
 
+// Where a configured SAP field is read from: each DocumentLine, or the document header.
+export type SAPFieldLevel = "line" | "header";
+
 export interface SystemSettings {
   id: number;
   active_connection_id: number | null;
@@ -49,6 +52,11 @@ export interface SystemSettings {
   skip_cancelled: boolean;
   sales_cu_source: string;
   purchase_cu_source: string;
+  // Purchase Invoice comparison fields; null means the standard SAP fields.
+  purchase_vat_field: string | null;
+  purchase_vat_field_level: SAPFieldLevel;
+  purchase_amount_field: string | null;
+  purchase_amount_field_level: SAPFieldLevel;
   kra_parsing_profiles?: KRAParsingProfilesConfig | null;
   version: number;
   updated_at: string;

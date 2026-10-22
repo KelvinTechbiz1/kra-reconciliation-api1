@@ -15,6 +15,7 @@ from app.schemas.invoice import (
     ReconciliationType,
 )
 from app.services import invoice_service, kra_service
+from app.services.sap_mapper import PurchaseFieldMapping
 from app.services.settings_service import SettingsService
 from app.services.vat_normalizer import VatNormalizer
 
@@ -162,6 +163,12 @@ def load_sap_invoices(
         base_amount_policy=system_setting.base_amount_policy,
         vat_normalizer_override=normalizer,
         unmapped_vat_policy=system_setting.unmapped_vat_policy,
+        purchase_field_mapping=PurchaseFieldMapping(
+            vat_field=system_setting.purchase_vat_field,
+            vat_level=system_setting.purchase_vat_field_level or "line",
+            amount_field=system_setting.purchase_amount_field,
+            amount_level=system_setting.purchase_amount_field_level or "line",
+        ),
     )
 
     if session_id:
