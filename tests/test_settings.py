@@ -288,3 +288,44 @@ def test_settings_rbac_forbidden_for_standard_user(client: TestClient, db_sessio
 
 
 
+
+
+def test_company_scoped_admin_cannot_target_another_company(client: TestClient, db_session):
+    """An admin tied to a company must get 403 for another company's settings or users,
+    not that request silently answered with its own company's data."""
+    from app.models.company import Company
+
+    own = db_session.query(Company).first()
+    other = Company(name="Other Company")
+    db_session.add(other)
+    db_session.add(
+        User(
+            username="scoped_admin",
+            email="scoped@example.com",
+            password_hash=hash_password("securepass123"),
+            is_active=True,
+            role="admin",
+            company_id=own.id,
+        )
+    )
+    db_session.commit()
+
+    token = client.post("/api/v1/auth/login", json={"username": "scoped_admin", "password": "securepass123"}).json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    assert client.get(f"/api/v1/settings?company_id={other.id}", headers=headers).status_code == 403
+    assert client.put(
+        f"/api/v1/settings/system-settings?company_id={other.id}", json={"version": 1}, headers=headers
+    ).status_code == 403
+    assert client.get(f"/api/v1/users?company_id={other.id}", headers=headers).status_code == 403
+
+    # Own company (explicit or omitted) still works.
+    assert client.get(f"/api/v1/settings?company_id={own.id}", headers=headers).status_code == 200
+    assert client.get("/api/v1/settings", headers=headers).status_code == 200
+    assert client.get(f"/api/v1/users?company_id={own.id}", headers=headers).status_code == 200
+
+    # A platform admin (no company) can still target any company.
+    token = client.post("/api/v1/auth/login", json={"username": "admin_tester", "password": "securepass123"}).json()["access_token"]
+    assert client.get(
+        f"/api/v1/settings?company_id={other.id}", headers={"Authorization": f"Bearer {token}"}
+    ).status_code == 200

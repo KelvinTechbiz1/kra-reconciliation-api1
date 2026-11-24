@@ -99,7 +99,9 @@ export default function SettingsPage() {
             setCurrentUserId(me.id);
             setCurrentUserRole(me.role);
             userCompId = me.company_id ?? null;
-            isAdminFlag = me.role === "admin";
+            // Only an admin with no company is a platform admin; an admin tied to a
+            // company is scoped to it and the API rejects any other company_id.
+            isAdminFlag = me.role === "admin" && userCompId === null;
             setIsPlatformAdmin(isAdminFlag);
             setIsCompanyAdmin(me.role === "company_admin");
           }
@@ -144,21 +146,21 @@ export default function SettingsPage() {
 
   const loadCompanyData = useCallback(async () => {
     try {
-      if (currentUserRole === "admin") {
+      if (isPlatformAdmin) {
         const [companyRes, usersRes] = await Promise.all([
           fetchWithAuth("/company/all"),
           fetchWithAuth("/users"),
         ]);
         if (companyRes.ok) setCompanies(await companyRes.json());
         if (usersRes.ok) setUsers(await usersRes.json());
-      } else if (currentUserRole === "company_admin") {
+      } else if (currentUserRole === "admin" || currentUserRole === "company_admin") {
         const usersRes = await fetchWithAuth("/users");
         if (usersRes.ok) setUsers(await usersRes.json());
       }
     } catch {
       // non-critical — tab will show loading state
     }
-  }, [currentUserRole]);
+  }, [currentUserRole, isPlatformAdmin]);
 
   // Reload company/user list when relevant tab is opened
   useEffect(() => {
@@ -209,9 +211,11 @@ export default function SettingsPage() {
     );
   }
 
-  const canManageCompanies = currentUserRole === "admin";
+  const canManageCompanies = isPlatformAdmin;
   const canManageUsers = currentUserRole === "admin" || currentUserRole === "company_admin";
   const canSwitchCompany = canManageCompanies;
+  // An admin tied to a company manages users like a company admin (locked to its company).
+  const userCardRole = currentUserRole === "admin" && !isPlatformAdmin ? "company_admin" : currentUserRole;
   const currentSelectedCompany = companies.find((c) => c.id === selectedCompanyId);
 
   const sections: NavSection[] = [
@@ -415,7 +419,7 @@ export default function SettingsPage() {
               users={users}
               companies={companies}
               currentUserId={currentUserId ?? 0}
-              currentUserRole={currentUserRole}
+              currentUserRole={userCardRole}
               onSaved={handleCompanySaved}
             />
           )}

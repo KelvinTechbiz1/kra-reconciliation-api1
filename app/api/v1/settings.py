@@ -43,7 +43,9 @@ def _resolve_settings_company(
 ) -> Company:
     """Resolve the company whose settings are being accessed.
 
-    - Company users are locked to their own company (the param is ignored).
+    - Company users are locked to their own company; a ``company_id`` naming any
+      other company is rejected so the UI can never show or save one company's
+      settings under another company's name.
     - Platform admins may pass ``company_id`` to manage a specific tenant; if
       omitted, they fall back to the first company so the UI can render.
     """
@@ -59,6 +61,11 @@ def _resolve_settings_company(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No companies exist yet.")
         return company
     # Company user: always their own company.
+    if company_id is not None and company_id != current_user.company_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only access settings for your own company.",
+        )
     company = db.query(Company).filter(Company.id == current_user.company_id).first()
     if company is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Associated company not found.")

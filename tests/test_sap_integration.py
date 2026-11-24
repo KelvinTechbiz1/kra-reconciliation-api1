@@ -687,3 +687,115 @@ def test_get_documents_pages_selects_configured_header_fields():
         vat_field="U_Taxable", vat_level="header", amount_field="U_DocTotal", amount_level="header",
     ))
     assert {"U_Taxable", "U_DocTotal", "DocumentLines", "U_CUINV"} <= set(header_level)
+
+
+# --------------------------------------------------------------------------- #
+# Login hardening: one login at a time, retry on 5xx, logout after a fetch
+# --------------------------------------------------------------------------- #
+def _login_response(status_code=200, text=""):
+    res = MagicMock()
+    res.status_code = status_code
+    res.text = text
+    res.json.return_value = {"SessionId": "sess", "SessionTimeout": 30}
+    res.cookies = {"B1SESSION": "sess"}
+    return res
+
+
+def _quavatel_like_client():
+    return SAPClient(base_url="https://sap-test:50000/b1s/v1", username="manager", password="pw", company_db="DB")
+
+
+def test_login_retries_saml_login_failed_then_succeeds(monkeypatch):
+    monkeypatch.setattr("app.core.sap_client.LOGIN_RETRY_DELAY_SECONDS", 0)
+    client = _quavatel_like_client()
+    saml = _login_response(500, '{"error":{"code":299,"message":{"value":"SAML Login Failed"}}}')
+    with patch.object(client.client, "post", side_effect=[saml, _login_response()]) as post:
+        client.login()
+    assert post.call_count == 2
+    assert client.session_id == "sess"
+
+
+def test_login_gives_up_after_repeated_5xx(monkeypatch):
+    monkeypatch.setattr("app.core.sap_client.LOGIN_RETRY_DELAY_SECONDS", 0)
+    client = _quavatel_like_client()
+    with patch.object(client.client, "post", return_value=_login_response(500, "SAML Login Failed")) as post:
+        with pytest.raises(SAPConnectionError, match="HTTP 500"):
+            client.login()
+    assert post.call_count == 3
+
+
+def test_login_does_not_retry_wrong_credentials():
+    client = _quavatel_like_client()
+    with patch.object(client.client, "post", return_value=_login_response(401, "-304")) as post:
+        with pytest.raises(SAPConnectionError, match="HTTP 401"):
+            client.login()
+    assert post.call_count == 1
+
+
+def test_logins_for_same_user_are_never_concurrent():
+    """Two simultaneous logins as one user is what makes SAP answer 'SAML Login Failed'."""
+    import threading
+    import time as _time
+
+    state = {"in_flight": 0, "max": 0}
+    guard = threading.Lock()
+
+    def slow_post(*args, **kwargs):
+        with guard:
+            state["in_flight"] += 1
+            state["max"] = max(state["max"], state["in_flight"])
+        _time.sleep(0.05)
+        with guard:
+            state["in_flight"] -= 1
+        return _login_response()
+
+    clients = [_quavatel_like_client() for _ in range(4)]
+    patches = [patch.object(c.client, "post", side_effect=slow_post) for c in clients]
+    for p in patches:
+        p.start()
+    try:
+        threads = [threading.Thread(target=c.login) for c in clients]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+    finally:
+        for p in patches:
+            p.stop()
+    assert state["max"] == 1
+    assert all(c.session_id == "sess" for c in clients)
+
+
+def test_logout_ends_session_and_swallows_errors():
+    client = _quavatel_like_client()
+    client.session_id = "sess"
+    client.cookies = {"B1SESSION": "sess"}
+    with patch.object(client.client, "post") as post:
+        client.logout()
+    post.assert_called_once_with("https://sap-test:50000/b1s/v1/Logout", cookies={"B1SESSION": "sess"})
+    assert client.session_id is None and client.cookies == {}
+
+    failing = _quavatel_like_client()
+    failing.session_id = "sess"
+    with patch.object(failing.client, "post", side_effect=httpx.ConnectError("down")):
+        failing.logout()  # must not raise
+    assert failing.session_id is None
+
+
+def test_get_invoices_logs_out_every_endpoint_session_even_on_error():
+    from app.schemas.invoice import ReconciliationType
+
+    def pages(*args, endpoint_name, **kwargs):
+        if endpoint_name == "CreditNotes":
+            raise SAPQueryError("boom")
+        return iter([])
+
+    with patch.object(SAPClient, "get_documents_pages", side_effect=pages), \
+         patch.object(SAPClient, "logout") as logout:
+        with pytest.raises(SAPQueryError):
+            invoice_service.get_invoices(
+                datetime.date(2026, 11, 1), datetime.date(2026, 11, 7),
+                ReconciliationType.SALES, sap_client=_quavatel_like_client(),
+                reconciliation_session_id="sess-1", page_size=100,
+            )
+    assert logout.call_count == 2

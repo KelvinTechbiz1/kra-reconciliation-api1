@@ -1,4 +1,5 @@
 import datetime
+import threading
 import time
 import logging
 import urllib.parse
@@ -11,6 +12,21 @@ from app.core.sap_tls import build_verify, is_untrusted_certificate_error
 from app.schemas.invoice import ReconciliationType
 
 logger = logging.getLogger(__name__)
+
+# Some Service Layer installs (SLD/SAML authentication) reject one of two logins made by the
+# same user at the same instant with HTTP 500 "SAML Login Failed" (code 299). Logins for the
+# same server, database and user are therefore made one at a time within this process.
+_login_locks: Dict[tuple, threading.Lock] = {}
+_login_locks_guard = threading.Lock()
+
+LOGIN_ATTEMPTS = 3
+LOGIN_RETRY_DELAY_SECONDS = 1.0
+
+
+def _login_lock(base_url: str, company_db: str, username: str) -> threading.Lock:
+    key = (base_url, company_db, username)
+    with _login_locks_guard:
+        return _login_locks.setdefault(key, threading.Lock())
 
 
 class SAPClient:
@@ -93,16 +109,26 @@ class SAPClient:
 
         logger.info("SAP Service Layer: Initiating Login request...")
         start_time = time.perf_counter()
-        try:
-            response = self.client.post(login_url, json=payload)
-        except httpx.RequestError as exc:
-            logger.error(f"SAP Service Layer Login failed due to connection error: {exc}")
-            if is_untrusted_certificate_error(exc):
-                raise SAPConnectionError(
-                    "SAP Service Layer SSL certificate is not trusted. "
-                    "Trust the server's certificate in Settings > SAP Connection."
+        with _login_lock(self.base_url, self.company_db, self.username):
+            for attempt in range(1, LOGIN_ATTEMPTS + 1):
+                try:
+                    response = self.client.post(login_url, json=payload)
+                except httpx.RequestError as exc:
+                    logger.error(f"SAP Service Layer Login failed due to connection error: {exc}")
+                    if is_untrusted_certificate_error(exc):
+                        raise SAPConnectionError(
+                            "SAP Service Layer SSL certificate is not trusted. "
+                            "Trust the server's certificate in Settings > SAP Connection."
+                        )
+                    raise SAPConnectionError(f"Connection to SAP Service Layer failed: {exc}")
+                # 5xx on Login (e.g. "SAML Login Failed") is transient; wrong credentials are 401.
+                if response.status_code < 500 or attempt == LOGIN_ATTEMPTS:
+                    break
+                logger.warning(
+                    f"SAP Service Layer Login returned {response.status_code} "
+                    f"(attempt {attempt} of {LOGIN_ATTEMPTS}); retrying..."
                 )
-            raise SAPConnectionError(f"Connection to SAP Service Layer failed: {exc}")
+                time.sleep(LOGIN_RETRY_DELAY_SECONDS * attempt)
 
         if response.status_code != 200:
             logger.error(f"SAP Service Layer Login returned status {response.status_code}: {response.text}")
@@ -127,6 +153,22 @@ class SAPClient:
         self.session_expiry = datetime.datetime.now() + datetime.timedelta(minutes=max(timeout_mins - 2, 1))
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
         logger.info(f"SAP Service Layer: Login successful (took {elapsed_ms:.1f}ms).")
+
+    def logout(self) -> None:
+        """Ends the Service Layer session (best effort) and closes the HTTP client.
+
+        Without this every fetch leaves its sessions open on the SAP server until they time out.
+        """
+        try:
+            if self.session_id:
+                self.client.post(f"{self.base_url}/Logout", cookies=self.cookies)
+        except Exception as exc:  # never let cleanup hide the real result
+            logger.warning(f"SAP Service Layer Logout failed: {exc}")
+        finally:
+            self.session_id = None
+            self.cookies = {}
+            self.session_expiry = None
+            self.client.close()
 
     def _ensure_session(self) -> None:
         """

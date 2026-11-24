@@ -77,6 +77,31 @@ def _fetch_endpoint_invoices(
     unmapped_vat_policy: str | None = None,
     field_mapping: PurchaseFieldMapping | None = None,
 ) -> tuple[list[Invoice], int, int, int, float]:
+    try:
+        return _fetch_endpoint_invoices_with_client(
+            sap_client_clone, endpoint_name, source_doc_type, from_date, to_date, reconciliation_type,
+            reconciliation_session_id, cu_field, page_size, base_amount_policy, vat_normalizer_override,
+            unmapped_vat_policy, field_mapping,
+        )
+    finally:
+        sap_client_clone.logout()
+
+
+def _fetch_endpoint_invoices_with_client(
+    sap_client_clone: SAPClient,
+    endpoint_name: str,
+    source_doc_type: str,
+    from_date: date,
+    to_date: date,
+    reconciliation_type: ReconciliationType,
+    reconciliation_session_id: str,
+    cu_field: str,
+    page_size: int,
+    base_amount_policy: str | None,
+    vat_normalizer_override,
+    unmapped_vat_policy: str | None,
+    field_mapping: PurchaseFieldMapping | None,
+) -> tuple[list[Invoice], int, int, int, float]:
     start_time = time.perf_counter()
     endpoint_invoices = []
     raw_doc_count = 0

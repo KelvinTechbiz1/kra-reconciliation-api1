@@ -26,7 +26,14 @@ def _resolve_list_scope(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Administrator or company admin privileges required to manage users.",
         )
-    return company_id if current_user.company_id is None else current_user.company_id
+    if current_user.company_id is None:
+        return company_id
+    if company_id is not None and company_id != current_user.company_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only list users in your own company.",
+        )
+    return current_user.company_id
 
 
 @router.get("", response_model=List[UserResponse])
