@@ -323,3 +323,45 @@ def test_upload_sales_empty_file(client, auth_headers):
     response = client.post(f"/api/v1/sales/upload?session_id={session_id}", headers=auth_headers, files=files)
     assert response.status_code == 400
     assert "Uploaded file is empty" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("11/08/2026", date(2026, 8, 11)),
+        ("11/08/26", date(2026, 8, 11)),  # KRA CSV re-saved from Excel
+        ("13/08/26", date(2026, 8, 13)),  # day first, never month first
+        ("2026-08-11", date(2026, 8, 11)),
+    ],
+)
+def test_kra_invoice_date_formats(raw, expected):
+    res = normalize_invoice_data("PIN123", "Liquid", "IN1", raw, "CU123", "16", 100)
+    assert res["invoice_date"] == expected
+
+
+def test_kra_invoice_date_rejects_month_first_two_digit_year():
+    with pytest.raises(ValueError, match="DD/MM/YY"):
+        normalize_invoice_data("PIN123", "Liquid", "IN1", "08/13/26", "CU123", "16", 100)
+
+
+
+def test_parse_kra_csv_accepts_excel_resaved_two_digit_years(db_session):
+    """A KRA section B CSV saved back from Excel: no header row and DD/MM/YY dates."""
+    from app.services.settings_service import SettingsService
+
+    SettingsService.seed_default_kra_section_profiles(db_session)
+
+    class MockUploadFile:
+        def __init__(self, filename, content):
+            self.filename = filename
+            self.file = io.BytesIO(content)
+
+    content = (
+        b"P051091210Z,LIQUID TELECOMMUNICATIONS KENYA LIMITED,KRAMW011202207060486,11/08/26,"
+        b"|0110604860000001820,ETIMS/TIMS sales,22380\r\n"
+        b"P051129820X,Safaricom Plc,KRAMW011202207060486,13/08/26,"
+        b"|0110604860000001825,ETIMS/TIMS sales,80760\r\n"
+    )
+    response = kra_service.parse_kra_csv(MockUploadFile("SEC_B_WITH_VAT_PIN1.CSV", content), db_session)
+    assert response.errors_count == 0, response
+    assert [inv.invoice_date for inv in response.invoices] == [date(2026, 8, 11), date(2026, 8, 13)]

@@ -91,14 +91,16 @@ def normalize_invoice_data(
             raise ValueError("Invoice Date cannot be empty")
         
         parsed_date = None
-        for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
+        # DD/MM/YY covers KRA CSVs re-saved from Excel, which writes a two-digit year
+        # (%y maps 00-68 to 2000-2068). %Y needs four digits, so the formats never overlap.
+        for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d/%m/%y"):
             try:
                 parsed_date = datetime.strptime(date_str, fmt).date()
                 break
             except ValueError:
                 continue
         if parsed_date is None:
-            raise ValueError(f"Invalid date format '{date_str}'. Expected DD/MM/YYYY or YYYY-MM-DD.")
+            raise ValueError(f"Invalid date format '{date_str}'. Expected DD/MM/YYYY, DD/MM/YY or YYYY-MM-DD.")
         norm_date = parsed_date
 
     # 5. CU Number (Allow empty string as fallback)
